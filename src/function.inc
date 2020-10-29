@@ -1,0 +1,15 @@
+include windows.inc 
+include user32.inc 
+include kernel32.inc 
+include gdi32.inc
+include msvcrt.inc
+include comdlg32.inc
+include comctl32.inc
+INCLUDE winmm.inc
+INCLUDELIB winmm.lib
+includelib user32.lib
+includelib kernel32.lib 
+includelib gdi32.lib
+includelib msvcrt.lib
+includelib comdlg32.lib
+includelib comctl32.lib
