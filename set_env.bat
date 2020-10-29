@@ -1,0 +1,1 @@
+setx masm32 "C:\masm32"
