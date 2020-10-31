@@ -3,6 +3,7 @@
   <ItemGroup>
     <MASM Include="main.asm" />
     <MASM Include="proc.asm" />
+    <MASM Include="utils.asm" />
   </ItemGroup>
   <ItemGroup>
     <None Include="function.inc" />
