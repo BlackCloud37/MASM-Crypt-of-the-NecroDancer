@@ -126,15 +126,17 @@ initMap proc _level
 	ret
 initMap endp
 
-
-initEnemy proc _level
-	local @pEnemy, @enemyIndex
-	mov @enemyIndex, 0
-	.while(@enemyIndex < sizeof enemys)
-		; TODO
-		add @enemyIndex, type Enemy
-	.endw
-
+initEnemy proc uses edi _level
+	mov edi, offset enemys
+	mov (Enemy ptr [edi]).posX, 4
+	mov (Enemy ptr [edi]).posY, 4
+	mov (Enemy ptr [edi]).health, 1
+	mov (Enemy ptr [edi]).attack, 1
+	mov (Enemy ptr [edi]).nextStep, STEP_NONE
+	mov (Enemy ptr [edi]).moveType, ENEMY_MOVETYPE_CIRCLE
+	mov (Enemy ptr [edi]).tickCnt, 0
+	mov eax, hSlimeOrangeBmp
+	mov (Enemy ptr [edi]).hBmp, eax
 	ret
 initEnemy endp
 
@@ -154,6 +156,7 @@ checkCollision proc posX, posY
 		mov eax, 2
 		ret
 	.endif
+	; TODO: check enemy collision
 	mov eax, 0 ; no collision
 	ret
 checkCollision endp
@@ -163,20 +166,20 @@ checkCollision endp
 
 
 
-getEnemyAtPos proc posX, posY
-	local @enemyIndex, @penemy
-	mov @enemyIndex, 0
-	.while(@enemyIndex < sizeof enemys)
-		mov eax, @enemyIndex
-		lea edx, [enemys + eax]
-		mov @penemy, edx
-		mov eax, posX
-		mov ecx, posY
-		.if ([@penemy + S_ENEMY_HEALTH_OFFSET] != 0) && ([@penemy + S_ENEMY_POSX_OFFSET] == eax) && ([@penemy + S_ENEMY_POSY_OFFSET] == ecx)
-			mov eax, @penemy
+getEnemyAtPos proc uses edi posX, posY
+	local @cnt
+	mov @cnt, 0
+	mov edi, offset enemys
+	.while (@cnt < MAX_ENEMY_NUM)
+		mov eax, (Enemy ptr [edi]).posX
+		mov ecx, (Enemy ptr [edi]).posY
+		mov edx, (Enemy ptr [edi]).health
+		.if (edx != 0 ) && (eax == posX) && (ecx == posY)
+			mov eax, edi
 			ret
 		.endif
-		add @enemyIndex, type Enemy
+		add edi, type Enemy
+		inc @cnt
 	.endw
 	mov eax, 0
 	ret
@@ -223,11 +226,12 @@ updatePlayer proc
 			; attack the enemy
 			invoke getEnemyAtPos, @nextPosX, @nextPosY
 			mov @pEnemy, eax
-			mov eax, player.attack
-			.if [@pEnemy + S_ENEMY_HEALTH_OFFSET] <= eax
-				mov [@pEnemy + S_ENEMY_HEALTH_OFFSET], 0
+			mov eax, (Enemy ptr [@pEnemy]).health
+			.if eax <= player.attack
+				mov (Enemy ptr [@pEnemy]).health, 0
 			.else
-				sub [@pEnemy + S_ENEMY_HEALTH_OFFSET], eax
+				mov eax, player.attack
+				sub (Enemy ptr [@pEnemy]).health, eax
 			.endif
 		.endif
 		mov eax, player.posX
@@ -244,7 +248,114 @@ updatePlayer proc
 	ret
 updatePlayer endp
 
+decideNextStep proc moveType, posX, posY, tickCnt
+	.if moveType == ENEMY_MOVETYPE_STOP
+		mov eax, STEP_NONE
+	.elseif moveType == ENEMY_MOVETYPE_CIRCLE
+		.if tickCnt == 0
+			mov eax, STEP_LEFT
+			mov ecx, tickCnt
+			inc ecx
+		.elseif tickCnt == 1
+			mov eax, STEP_UP
+			mov ecx, tickCnt
+			inc ecx
+		.elseif tickCnt == 2
+			mov eax, STEP_RIGHT
+			mov ecx, tickCnt
+			inc ecx
+		.elseif tickCnt == 3
+			mov eax, STEP_DOWN
+			mov ecx, 0
+		.else
+			mov ecx, 0
+		.endif
+	.elseif moveType == ENEMY_MOVETYPE_RANDOM
+		;TODO
+	.endif
+	ret
+decideNextStep endp
 
+
+updateEnemy proc uses edi
+	local @nextPosX, @nextPosY, @collisionType, @cnt
+	mov edi, offset enemys
+	mov @cnt, 0
+
+	.while(@cnt < MAX_ENEMY_NUM)
+		mov eax, (Enemy ptr [edi]).health
+		.if (eax == 0)
+			jmp continue
+		.endif
+		invoke decideNextStep, (Enemy ptr [edi]).moveType, (Enemy ptr [edi]).posX, (Enemy ptr [edi]).posY, (Enemy ptr [edi]).tickCnt
+		mov (Enemy ptr [edi]).nextStep, eax
+		mov (Enemy ptr [edi]).tickCnt, ecx		
+		.if (eax == STEP_NONE)
+			jmp continue
+		.endif
+		mov eax, (Enemy ptr [edi]).posX
+		mov @nextPosX, eax
+		mov eax, (Enemy ptr [edi]).posY
+		mov @nextPosY, eax
+		mov eax, (Enemy ptr [edi]).nextStep
+		mov edx, (Enemy ptr [edi]).posY
+		.if (eax == STEP_UP) && (edx >= 1)
+			dec @nextPosY
+		.endif
+		mov eax, (Enemy ptr [edi]).nextStep
+		mov edx, (Enemy ptr [edi]).posX
+		.if (eax == STEP_RIGHT) && (edx < MAP_WIDTH - 1)
+			inc @nextPosX
+		.endif
+		mov eax, (Enemy ptr [edi]).nextStep
+		mov edx, (Enemy ptr [edi]).posY
+		.if (eax == STEP_DOWN) && (edx < MAP_HEIGHT - 1)
+			inc @nextPosY
+		.endif
+		mov eax, (Enemy ptr [edi]).nextStep
+		mov edx, (Enemy ptr [edi]).posX
+		.if (eax == STEP_LEFT) && (edx >= 1)
+			dec @nextPosX
+		.endif
+
+		invoke checkCollision, @nextPosX, @nextPosY
+		mov @collisionType, eax
+		.if @collisionType != 0
+			.if @collisionType == 1 ; wall
+				; TODO: dig the wall
+				jmp continue
+			.elseif @collisionType == 2 ; enemy
+				jmp continue
+			.elseif @collisionType == 3 ; player
+				; attack the player
+				mov eax, player.health
+				mov edx, (Enemy ptr [edi]).attack
+				.if eax <= edx
+					mov player.health, 0
+				.else
+					mov eax, edx
+					sub player.health, eax
+				.endif
+			.endif
+			;cancel move
+			mov eax, (Enemy ptr [edi]).posX
+			mov @nextPosX, eax
+			mov eax, (Enemy ptr [edi]).posY
+			mov @nextPosY, eax
+		.endif
+
+		mov (Enemy ptr [edi]).nextStep, STEP_NONE
+		mov eax, @nextPosX
+		mov (Enemy ptr [edi]).posX, eax
+		mov eax, @nextPosY
+		mov (Enemy ptr [edi]).posY, eax
+		continue:
+		add edi, type Enemy
+		inc @cnt
+	.endw
+
+	ret	
+updateEnemy endp
 
 updateStatus proc
 	; TODO: Åö×²¼ì²â
@@ -252,7 +363,7 @@ updateStatus proc
 	invoke updatePlayer
 	
 	; TODO: Update Enemy and Map
-
+	invoke updateEnemy
 	; Update paint window
 	mov eax, player.posX
 	mov paintWindowPosX, eax
@@ -396,8 +507,19 @@ _PaintPlayer endp
 
 
 
-_PaintEnemy	proc hWnd, hDC
-
+_PaintEnemy	proc uses edi hWnd, hDC
+	local @cnt
+	mov @cnt, 0
+	mov edi, offset enemys
+	.while (@cnt < MAX_ENEMY_NUM)
+		mov eax, (Enemy ptr [edi]).health
+		.if eax > 0 ; BUG
+			invoke actualPosToPaintWindowPos, (Enemy ptr [edi]).posX, (Enemy ptr [edi]).posY
+			invoke _PaintObjectAtPos, ecx, eax, (Enemy ptr [edi]).hBmp, hWnd, hDC
+		.endif
+		add edi, type Enemy
+		inc @cnt
+	.endw
 	ret
 _PaintEnemy endp
 

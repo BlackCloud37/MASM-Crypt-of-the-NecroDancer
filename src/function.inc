@@ -35,12 +35,13 @@ actualPosToPaintWindowPos proto :DWORD, :DWORD
 startGame				proto :DWORD								; 做游戏开始的资源准备
 initMap					proto :DWORD								; 初始化整个地图，从文件读入
 initPlayer				proto :DWORD								; 初始化玩家
-initEnemy				proto :DWORD								; 初始化敌人 TODO
+initEnemy				proto :DWORD								; 初始化敌人
 
 updateStatus			proto										; 更新游戏状态
 updatePlayer			proto										; 更新玩家位置
 updateEnemy				proto										; TODO
 checkCollision			proto :DWORD, :DWORD						; 检查位置是否有实体
+decideNextStep			proto :DWORD,:DWORD,:DWORD,:DWORD			; 获取下一步
 
 getEnemyAtPos			proto :DWORD, :DWORD						
 
@@ -87,15 +88,10 @@ MAP_TYPE_STONE_WALL		equ 1
 
 
 ; enemy
-S_ENEMY_POSX_OFFSET	    equ 0
-S_ENEMY_POSY_OFFSET	    equ 4
-S_ENEMY_HEALTH_OFFSET   equ 8
-S_ENEMY_ATTACK_OFFSET   equ 12
-S_ENEMY_NEXTSTEP_OFFSET equ 16
-S_ENEMY_MOVETYPE_OFFSET equ 20
-S_ENEMY_TICKCNT_OFFSET  equ 24
-S_ENEMY_HBMP_OFFSET		equ 28
 
+ENEMY_MOVETYPE_RANDOM   equ 0
+ENEMY_MOVETYPE_CIRCLE   equ 1
+ENEMY_MOVETYPE_STOP		equ 2
 
 
 
