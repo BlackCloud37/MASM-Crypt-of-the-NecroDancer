@@ -11,6 +11,12 @@ _InitResources proc
 	mov hPlayerBmp, eax
 	invoke LoadImage, hInstance, addr szDirtyFloorPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
 	mov hDirtyFloorBmp, eax
+	invoke LoadImage, hInstance, addr szStoneWallPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
+	mov hStoneWallBmp, eax
+	invoke LoadImage, hInstance, addr szSlimeOrangePicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
+	mov hSlimeOrangeBmp, eax
+	invoke LoadImage, hInstance, addr szBatPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
+	mov hBatBmp, eax
 	ret
 _InitResources endp
 
@@ -22,6 +28,9 @@ _InitResources endp
 _DestroyResources proc
 	invoke DeleteObject, hPlayerBmp
 	invoke DeleteObject, hDirtyFloorBmp
+	invoke DeleteObject, hStoneWallBmp
+	invoke DeleteObject, hSlimeOrangeBmp
+	invoke DeleteObject, hBatBmp
 	ret
 _DestroyResources endp
 
@@ -36,8 +45,7 @@ startGame proc _level
 	; Enemy
 	invoke initEnemy, _level
 	; Others
-	mov paintWindowPosX, 0
-	mov paintWindowPosY, 0
+	invoke updateStatus
 	ret
 startGame endp
 
@@ -94,7 +102,7 @@ initEnemy endp
 
 
 initMap proc _level
-	local @posX, @posY, @index
+	local @posX, @posY
 	; TODO: ¶ÁÎÄ¼þ
 	mov @posY, 0
 	.while (@posY < MAP_HEIGHT)
@@ -109,27 +117,128 @@ initMap proc _level
 		inc @posY
 		pop ecx
 	.endw
+	invoke changeMapPosTo, 1,1, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 1,2, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 1,3, MAP_TYPE_STONE_WALL
 	ret
 initMap endp
 
 
+checkCollision proc posX, posY
+	local @enemy
+	invoke getMatrixIndex, posY, posX, MAP_WIDTH, MAP_HEIGHT
+	shl eax, 2
+	mov eax, [mapMatrix + eax]
+	.if eax == MAP_TYPE_STONE_WALL
+		mov eax, 1
+		ret
+	.endif
+	; TODO: attack range
+	invoke getEnemyAtPos, posX, posY
+	.if eax != 0
+		mov eax, 2
+		ret
+	.endif
+	mov eax, 0 ; no collision
+	ret
+checkCollision endp
+
+
+
+
+
+
+getEnemyAtPos proc posX, posY
+	local @enemyIndex, @penemy
+	mov @enemyIndex, 0
+	.while(@enemyIndex < sizeof enemys)
+		mov eax, @enemyIndex
+		lea edx, [enemys + eax]
+		mov @penemy, edx
+		mov eax, posX
+		mov ecx, posY
+		.if ([@penemy + S_ENEMY_HEALTH_OFFSET] != 0) && ([@penemy + S_ENEMY_POSX_OFFSET] == eax) && ([@penemy + S_ENEMY_POSY_OFFSET] == ecx)
+			mov eax, @penemy
+			ret
+		.endif
+		add @enemyIndex, type Enemy
+	.endw
+	mov eax, 0
+	ret
+getEnemyAtPos endp
+
+
+
+
+
+
+
+updatePlayer proc
+	local @nextPosX, @nextPosY, @collisionType, @pEnemy
+	.if (player.nextStep == STEP_NONE)
+		ret
+	.endif
+	mov eax, player.posX
+	mov @nextPosX, eax
+	mov eax, player.posY
+	mov @nextPosY, eax
+
+	.if (player.nextStep == STEP_UP) && (player.posY >= 1)
+		dec @nextPosY
+	.endif
+
+	.if (player.nextStep == STEP_RIGHT) && (player.posX < MAP_WIDTH - 1)
+		inc @nextPosX
+	.endif
+
+	.if (player.nextStep == STEP_DOWN) && (player.posY < MAP_HEIGHT - 1)
+		inc @nextPosY
+	.endif
+	
+	.if (player.nextStep == STEP_LEFT) && (player.posX >= 1)
+		dec @nextPosX
+	.endif
+
+	invoke checkCollision, @nextPosX, @nextPosY
+	mov @collisionType, eax
+	.if @collisionType != 0
+		.if @collisionType == 1 ; wall
+			; TODO: dig the wall
+		.elseif @collisionType == 2 ; enemy
+			; attack the enemy
+			invoke getEnemyAtPos, @nextPosX, @nextPosY
+			mov @pEnemy, eax
+			mov eax, player.attack
+			.if [@pEnemy + S_ENEMY_HEALTH_OFFSET] <= eax
+				mov [@pEnemy + S_ENEMY_HEALTH_OFFSET], 0
+			.else
+				sub [@pEnemy + S_ENEMY_HEALTH_OFFSET], eax
+			.endif
+		.endif
+		mov eax, player.posX
+		mov @nextPosX, eax
+		mov eax, player.posY
+		mov @nextPosY, eax
+	.endif
+
+	mov player.nextStep, STEP_NONE
+	mov eax, @nextPosX
+	mov player.posX, eax
+	mov eax, @nextPosY
+	mov player.posY, eax
+	ret
+updatePlayer endp
 
 
 
 updateStatus proc
-	; TODO: player
-	.if player.nextStep == STEP_UP
-		dec player.posY
-	.elseif player.nextStep == STEP_RIGHT
-		inc player.posX
-	.elseif player.nextStep == STEP_DOWN
-		inc player.posY
-	.elseif player.nextStep == STEP_LEFT
-		dec player.posX
-	.endif
-	mov player.nextStep, STEP_NONE
+	; TODO: Åö×²¼ì²â
+	
+	invoke updatePlayer
+	
+	; TODO: Update Enemy and Map
 
-	; Paint window
+	; Update paint window
 	mov eax, player.posX
 	mov paintWindowPosX, eax
 	mov ecx, (PAINT_WINDOW_WIDTH-1)/2
@@ -164,6 +273,8 @@ updateStatus endp
 getPicOfMapType proc mapType
 	.if mapType == MAP_TYPE_DIRTY_FLOOR
 		mov eax, hDirtyFloorBmp
+	.elseif mapType == MAP_TYPE_STONE_WALL
+		mov eax, hStoneWallBmp
 	.endif
 	ret
 getPicOfMapType endp

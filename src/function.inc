@@ -38,9 +38,10 @@ initPlayer				proto :DWORD								; 初始化玩家
 initEnemy				proto :DWORD								; 初始化敌人
 
 updateStatus			proto										; 更新游戏状态
+updatePlayer			proto										; 更新玩家位置
+checkCollision			proto :DWORD, :DWORD						; 检查位置是否有实体
 
-
-
+getEnemyAtPos			proto :DWORD, :DWORD						
 
 
 
@@ -81,9 +82,18 @@ PAINT_WINDOW_WIDTH		equ 9
 PAINT_WINDOW_HEIGHT		equ 9
 ; 地图类型定义
 MAP_TYPE_DIRTY_FLOOR	equ 0
+MAP_TYPE_STONE_WALL		equ 1
 
 
-
+; enemy
+S_ENEMY_POSX_OFFSET	    equ 0
+S_ENEMY_POSY_OFFSET	    equ 4
+S_ENEMY_HEALTH_OFFSET   equ 8
+S_ENEMY_ATTACK_OFFSET   equ 12
+S_ENEMY_NEXTSTEP_OFFSET equ 16
+S_ENEMY_MOVETYPE_OFFSET equ 20
+S_ENEMY_TICKCNT_OFFSET  equ 24
+S_ENEMY_HBMP_OFFSET		equ 28
 
 
 
@@ -99,20 +109,15 @@ Player struct
 Player ends
 
 Enemy struct
-	ALIGN				dword
 	posX				dd ?
 	posY				dd ?
 	health				dd ?
 	attack				dd ?
-	attackRangeType		dd ?
 	nextStep			dd ?
 	moveType			dd ?
+	tickCnt				dd ?
 	hBmp				dd ?
 Enemy ends
-
-
-
-
 
 
 
@@ -128,12 +133,15 @@ Enemy ends
 	; 资源句柄
 	hPlayerBmp				dd ?
 	hDirtyFloorBmp			dd ?
-
+	hStoneWallBmp			dd ?
+	hSlimeOrangeBmp			dd ?
+	hBatBmp					dd ?
+	
 	; 游戏状态
 	mapMatrix				dd MAP_WIDTH * MAP_HEIGHT dup(0)
 	level					dd ?
 	player					Player <>
-	enemys					Enemy MAX_ENEMY_NUM dup(<>)
+	enemys					Enemy MAX_ENEMY_NUM dup(<,,0,0,0,0,0,0>)
 	dwBaseTick				dd ? ; 上一个节拍的时间戳
 
 	; 绘图状态
@@ -147,3 +155,7 @@ Enemy ends
 	szBgmFilePath			db 'media\\bgm.wav', 0
 	szPlayerPicPath			db 'image\\Cadence.bmp', 0
 	szDirtyFloorPicPath		db 'image\\Dirty_Floor.bmp', 0
+	szStoneWallPicPath		db 'image\\Stone_Wall.bmp', 0
+	szSlimeOrangePicPath	db 'image\\Slime_Orange.bmp', 0
+	szBatPicPath			db 'image\\Bat.bmp', 0
+	
