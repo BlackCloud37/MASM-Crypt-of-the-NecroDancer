@@ -20,7 +20,7 @@ _CreateDIBitmap			proto :HWND, :DWORD
 _PaintGameFrame			proto :HWND,:DWORD
 _PaintMap				proto :HWND, :DWORD
 _PaintPlayer			proto :HWND, :DWORD
-_PaintEnemy				proto :HWND, :DWORD
+_PaintEnemy				proto :HWND, :DWORD							; TODO
 _PaintObjectAtPos		proto :DWORD,:DWORD,:DWORD,:HWND,:DWORD
 _InitResources			proto
 
@@ -35,10 +35,11 @@ actualPosToPaintWindowPos proto :DWORD, :DWORD
 startGame				proto :DWORD								; 做游戏开始的资源准备
 initMap					proto :DWORD								; 初始化整个地图，从文件读入
 initPlayer				proto :DWORD								; 初始化玩家
-initEnemy				proto :DWORD								; 初始化敌人
+initEnemy				proto :DWORD								; 初始化敌人 TODO
 
 updateStatus			proto										; 更新游戏状态
 updatePlayer			proto										; 更新玩家位置
+updateEnemy				proto										; TODO
 checkCollision			proto :DWORD, :DWORD						; 检查位置是否有实体
 
 getEnemyAtPos			proto :DWORD, :DWORD						

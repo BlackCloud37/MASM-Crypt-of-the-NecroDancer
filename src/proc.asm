@@ -93,12 +93,6 @@ changeMapPosTo endp
 
 
 
-initEnemy proc _level
-	ret
-initEnemy endp
-
-
-
 
 
 initMap proc _level
@@ -120,8 +114,29 @@ initMap proc _level
 	invoke changeMapPosTo, 1,1, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 1,2, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 1,3, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 2,1, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 3,1, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 3,3, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 5,5, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 5,6, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 5,7, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 7,6, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 8,6, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 9,6, MAP_TYPE_STONE_WALL
 	ret
 initMap endp
+
+
+initEnemy proc _level
+	local @pEnemy, @enemyIndex
+	mov @enemyIndex, 0
+	.while(@enemyIndex < sizeof enemys)
+		; TODO
+		add @enemyIndex, type Enemy
+	.endw
+
+	ret
+initEnemy endp
 
 
 checkCollision proc posX, posY
@@ -308,7 +323,7 @@ _PaintGameFrame	proc hWnd, hDC
 	pushad
 	invoke _PaintMap, hWnd, hDC
 	invoke _PaintPlayer, hWnd, hDC
-	; TODO: Paint Enemy
+	invoke _PaintEnemy, hWnd, hDC
 	; TODO: Paint Other
 	popad
 	ret
@@ -382,6 +397,7 @@ _PaintPlayer endp
 
 
 _PaintEnemy	proc hWnd, hDC
+
 	ret
 _PaintEnemy endp
 
