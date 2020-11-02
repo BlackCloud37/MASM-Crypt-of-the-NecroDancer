@@ -62,7 +62,7 @@ MAP_WIDTH				equ 14
 MAP_HEIGHT				equ 14
 
 ; enemy
-MAX_ENEMY_NUM			equ 100
+MAX_ENEMY_NUM			equ 10
 
 ; level
 FIRST_LEVEL				equ 1
@@ -145,6 +145,7 @@ Enemy ends
 	paintWindowPosX			dd ?
 	paintWindowPosY			dd ?
 
+	currentBeatInterval		dd ?
 
 ; 常量定义
 .const
@@ -156,3 +157,6 @@ Enemy ends
 	szSlimeOrangePicPath	db 'image\\Slime_Orange.bmp', 0
 	szBatPicPath			db 'image\\Bat.bmp', 0
 	
+	BEAT_INTERVALS_STAGE1_COUNT equ 8
+	beatIntervalsStage1		dd 1000, 1000, 1000, 1000, 500, 500, 500, 500
+	;mapDataStage1			DWORD 

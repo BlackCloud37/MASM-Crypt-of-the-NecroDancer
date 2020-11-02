@@ -40,6 +40,8 @@ _DestroyResources endp
 
 
 startGame proc _level
+	invoke SetTimer,hWnd,ID_TIMER_BEAT,BEAT_INTERVAL,NULL
+	invoke PlaySound, offset szBgmFilePath, NULL, SND_ASYNC or SND_FILENAME or SND_LOOP
 	invoke initMap, _level
 	invoke initPlayer, _level
 	; Enemy
@@ -116,7 +118,7 @@ initMap proc _level
 	invoke changeMapPosTo, 1,3, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 2,1, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 3,1, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 3,3, MAP_TYPE_STONE_WALL
+	;invoke changeMapPosTo, 3,3, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 5,5, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 5,6, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 5,7, MAP_TYPE_STONE_WALL
@@ -142,7 +144,6 @@ initEnemy endp
 
 
 checkCollision proc posX, posY
-	local @enemy
 	invoke getMatrixIndex, posY, posX, MAP_WIDTH, MAP_HEIGHT
 	shl eax, 2
 	mov eax, [mapMatrix + eax]
@@ -150,13 +151,22 @@ checkCollision proc posX, posY
 		mov eax, 1
 		ret
 	.endif
+	
+	; TODO: check enemy's collision
+	mov eax, player.posX
+	mov ecx, player.posY
+	.if (eax == posX) && (ecx == posY)
+		mov eax, 3
+		ret
+	.endif
+	
 	; TODO: attack range
 	invoke getEnemyAtPos, posX, posY
 	.if eax != 0
 		mov eax, 2
 		ret
 	.endif
-	; TODO: check enemy collision
+	
 	mov eax, 0 ; no collision
 	ret
 checkCollision endp
@@ -192,7 +202,7 @@ getEnemyAtPos endp
 
 
 updatePlayer proc
-	local @nextPosX, @nextPosY, @collisionType, @pEnemy
+	local @nextPosX, @nextPosY, @collisionType
 	.if (player.nextStep == STEP_NONE)
 		ret
 	.endif
@@ -225,13 +235,13 @@ updatePlayer proc
 		.elseif @collisionType == 2 ; enemy
 			; attack the enemy
 			invoke getEnemyAtPos, @nextPosX, @nextPosY
-			mov @pEnemy, eax
-			mov eax, (Enemy ptr [@pEnemy]).health
+			mov edx, eax
+			mov eax, (Enemy ptr [edx]).health
 			.if eax <= player.attack
-				mov (Enemy ptr [@pEnemy]).health, 0
+				mov (Enemy ptr [edx]).health, 0
 			.else
 				mov eax, player.attack
-				sub (Enemy ptr [@pEnemy]).health, eax
+				sub (Enemy ptr [edx]).health, eax
 			.endif
 		.endif
 		mov eax, player.posX
@@ -278,7 +288,7 @@ decideNextStep endp
 
 
 updateEnemy proc uses edi
-	local @nextPosX, @nextPosY, @collisionType, @cnt
+	local @nextPosX, @nextPosY, @collisionType, @cnt, @prevTickCnt
 	mov edi, offset enemys
 	mov @cnt, 0
 
@@ -287,6 +297,8 @@ updateEnemy proc uses edi
 		.if (eax == 0)
 			jmp continue
 		.endif
+		mov eax, (Enemy ptr [edi]).tickCnt
+		mov @prevTickCnt, eax
 		invoke decideNextStep, (Enemy ptr [edi]).moveType, (Enemy ptr [edi]).posX, (Enemy ptr [edi]).posY, (Enemy ptr [edi]).tickCnt
 		mov (Enemy ptr [edi]).nextStep, eax
 		mov (Enemy ptr [edi]).tickCnt, ecx		
@@ -321,6 +333,8 @@ updateEnemy proc uses edi
 		invoke checkCollision, @nextPosX, @nextPosY
 		mov @collisionType, eax
 		.if @collisionType != 0
+			mov eax, @prevTickCnt
+			mov (Enemy ptr [edi]).tickCnt, eax
 			.if @collisionType == 1 ; wall
 				; TODO: dig the wall
 				jmp continue
@@ -364,6 +378,9 @@ updateStatus proc
 	
 	; TODO: Update Enemy and Map
 	invoke updateEnemy
+	.if player.health == 0
+		invoke PostMessage, hWinMain, WM_QUIT, NULL, NULL
+	.endif
 	; Update paint window
 	mov eax, player.posX
 	mov paintWindowPosX, eax
@@ -414,7 +431,7 @@ initPlayer proc _level
 	.if _level == FIRST_LEVEL
 		mov player.posX, 0
 		mov player.posY, 0
-		mov player.health, 5
+		mov player.health, 2
 		mov player.attack, 1
 		mov player.attackRangeType, ATTACK_MODE_NORMAL
 		mov player.nextStep, STEP_NONE
@@ -603,16 +620,11 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 		.elseif	eax ==	WM_CREATE
 			; TODO: do init here
 			; TODO: play music
-			invoke SetTimer,hWnd,ID_TIMER_BEAT,BEAT_INTERVAL,NULL
-			invoke GetTickCount
-			invoke PlaySound, offset szBgmFilePath, NULL, SND_ASYNC or SND_FILENAME or SND_LOOP
 			invoke _InitResources
 			invoke startGame, FIRST_LEVEL
-			mov dwBaseTick, eax
 ;********************************************************************
 		
 		.elseif	eax ==	WM_CLOSE
-			; TODO: do destroy here
 			invoke KillTimer,hWnd,ID_TIMER_BEAT
 			invoke DestroyWindow,hWinMain
 			invoke PostQuitMessage,NULL
