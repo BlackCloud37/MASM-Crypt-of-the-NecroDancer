@@ -5,7 +5,9 @@ include gdi32.inc
 include msvcrt.inc
 include comdlg32.inc
 include comctl32.inc
+include msimg32.inc
 INCLUDE winmm.inc
+includelib msimg32.lib
 INCLUDELIB winmm.lib
 includelib user32.lib
 includelib kernel32.lib 
@@ -20,8 +22,10 @@ _CreateDIBitmap			proto :HWND, :DWORD
 _PaintGameFrame			proto :HWND,:DWORD
 _PaintMap				proto :HWND, :DWORD
 _PaintPlayer			proto :HWND, :DWORD
-_PaintEnemy				proto :HWND, :DWORD							; TODO
-_PaintObjectAtPos		proto :DWORD,:DWORD,:DWORD,:HWND,:DWORD
+_PaintEnemy				proto :HWND, :DWORD
+_PaintHealthHeart		proto :HWND, :DWORD
+_PaintHeart				proto :HWND, :DWORD, :DWORD
+_PaintObjectAtPos		proto :DWORD,:DWORD,:DWORD,:DWORD,:HWND,:DWORD
 _InitResources			proto
 
 
@@ -38,15 +42,21 @@ initPlayer				proto :DWORD								; 初始化玩家
 initEnemy				proto :DWORD								; 初始化敌人
 
 updateStatus			proto										; 更新游戏状态
-updatePlayer			proto										; 更新玩家位置
-updateEnemy				proto										; TODO
+updatePlayer			proto										; 更新玩家状态
+updateEnemy				proto										; 更新敌人状态
 checkCollision			proto :DWORD, :DWORD						; 检查位置是否有实体
-decideNextStep			proto :DWORD,:DWORD,:DWORD,:DWORD			; 获取下一步
+decideNextStep			proto :DWORD,:DWORD,:DWORD,:DWORD			; 获取敌人下一步
 
 getEnemyAtPos			proto :DWORD, :DWORD						
 
 
-
+RGB macro r, g, b
+	xor eax, eax
+	mov ah, b
+	shl eax, 8
+	mov ah, g
+	mov al, r
+endm
 
 
 
@@ -55,8 +65,7 @@ MAX_PATH_LENGTH			equ 100
 ; 游戏状态
 ; beat
 BEAT_INTERVAL			equ 100  ; ms
-;TOLERANCE_INTERVAL		equ 200  ; ms
-TOLERANCE_COUNT			equ 3
+TOLERANCE_COUNT			equ 2
 
 ; map
 MAP_WIDTH				equ 14
@@ -81,12 +90,21 @@ STEP_RIGHT				equ 3
 STEP_DOWN				equ 4
 ; 绘图相关
 GRID_SIZE				equ 50
-PAINT_WINDOW_WIDTH		equ 9
+HEALTH_HEART_WIDTH		equ 24
+HEALTH_HEART_HEIGHT		equ 22
+HEART_WIDTH				equ 80
+HEART_HEIGHT			equ 82
+PAINT_WINDOW_WIDTH		equ 12
 PAINT_WINDOW_HEIGHT		equ 9
+NEED_SHIFT				equ 1
+NONEED_SHIFT			equ 0
+WINDOW_HEIGHT			equ 492
+WINDOW_WIDTH			equ 620
+
 ; 地图类型定义
 MAP_TYPE_DIRTY_FLOOR	equ 0
 MAP_TYPE_STONE_WALL		equ 1
-
+MAP_TYPE_DIRTY_WALL		equ 2
 
 ; enemy
 
@@ -132,8 +150,15 @@ Enemy ends
 	hPlayerBmp				dd ?
 	hDirtyFloorBmp			dd ?
 	hStoneWallBmp			dd ?
+	hStoneWallZoneBmp		dd ?
+	hDirtyWallBmp			dd ?
+	hDirtyWallZoneBmp		dd ?
 	hSlimeOrangeBmp			dd ?
 	hBatBmp					dd ?
+	hHealthHeartBmp			dd ?
+	hHeartBigBmp			dd ?
+	hHeartSmallBmp			dd ?
+	bitmapbuffer			BITMAP <>
 	
 	; 游戏状态
 	mapMatrix				dd MAP_WIDTH * MAP_HEIGHT dup(0)
@@ -149,6 +174,8 @@ Enemy ends
 	currentBeatCount   		dd ?
 	currentBeatInterval		dd ?
 	beatIntervalIndex		dd ?
+
+	paintCount				dd ?
 ; 常量定义
 .const
 	szClassName				db 'Window', 0
@@ -156,8 +183,14 @@ Enemy ends
 	szPlayerPicPath			db 'image\\Cadence.bmp', 0
 	szDirtyFloorPicPath		db 'image\\Dirty_Floor.bmp', 0
 	szStoneWallPicPath		db 'image\\Stone_Wall.bmp', 0
+	szDirtyWallPicPath		db 'image\\Dirty_Wall.bmp', 0
+	szDirtyWallZonePicPath	db 'image\\Dirty_Wall_Zone.bmp', 0
+	szStoneWallZonePicPath	db 'image\\Stone_Wall_Zone.bmp', 0
 	szSlimeOrangePicPath	db 'image\\Slime_Orange.bmp', 0
 	szBatPicPath			db 'image\\Bat.bmp', 0
+	szHealthHeartPicPath	db 'image\\Health_Heart.bmp', 0
+	szHeartSmallPicPath		db 'image\\Heart_Small.bmp', 0
+	szHeartBigPicPath		db 'image\\Heart_Big.bmp', 0
 	
 	beatIntervalsStage1	    dd 1, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 4, 5, 4, 5, 5, 6, 5, 5, 5, 5, 6
 							dd   5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 4, 5, 5, 4, 6, 5, 5, 5, 5, 6

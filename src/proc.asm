@@ -13,10 +13,22 @@ _InitResources proc
 	mov hDirtyFloorBmp, eax
 	invoke LoadImage, hInstance, addr szStoneWallPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
 	mov hStoneWallBmp, eax
+	invoke LoadImage, hInstance, addr szStoneWallZonePicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hStoneWallZoneBmp, eax
+	invoke LoadImage, hInstance, addr szDirtyWallPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
+	mov hDirtyWallBmp, eax
+	invoke LoadImage, hInstance, addr szDirtyWallZonePicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hDirtyWallZoneBmp, eax
 	invoke LoadImage, hInstance, addr szSlimeOrangePicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
 	mov hSlimeOrangeBmp, eax
 	invoke LoadImage, hInstance, addr szBatPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
 	mov hBatBmp, eax
+	invoke LoadImage, hInstance, addr szHealthHeartPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hHealthHeartBmp, eax
+	invoke LoadImage, hInstance, addr szHeartBigPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hHeartBigBmp, eax
+	invoke LoadImage, hInstance, addr szHeartSmallPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hHeartSmallBmp, eax
 	ret
 _InitResources endp
 
@@ -29,8 +41,14 @@ _DestroyResources proc
 	invoke DeleteObject, hPlayerBmp
 	invoke DeleteObject, hDirtyFloorBmp
 	invoke DeleteObject, hStoneWallBmp
+	invoke DeleteObject, hStoneWallZoneBmp
+	invoke DeleteObject, hDirtyWallBmp
+	invoke DeleteObject, hDirtyWallZoneBmp
 	invoke DeleteObject, hSlimeOrangeBmp
 	invoke DeleteObject, hBatBmp
+	invoke DeleteObject, hHeartBigBmp
+	invoke DeleteObject, hHeartSmallBmp
+	invoke DeleteObject, hHealthHeartBmp
 	ret
 _DestroyResources endp
 
@@ -40,7 +58,7 @@ _DestroyResources endp
 
 
 startGame proc _level
-	
+	mov paintCount, 0
 	mov beatIntervalIndex, 0
 	mov eax, beatIntervalIndex
 	mov eax, [beatIntervalsStage1 + eax]
@@ -123,9 +141,9 @@ initMap proc _level
 	invoke changeMapPosTo, 1,1, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 1,2, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 1,3, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 2,1, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 3,1, MAP_TYPE_STONE_WALL
-	;invoke changeMapPosTo, 3,3, MAP_TYPE_STONE_WALL
+	invoke changeMapPosTo, 2,1, MAP_TYPE_DIRTY_WALL
+	invoke changeMapPosTo, 3,1, MAP_TYPE_DIRTY_WALL
+	invoke changeMapPosTo, 2,2, MAP_TYPE_DIRTY_WALL
 	invoke changeMapPosTo, 5,5, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 5,6, MAP_TYPE_STONE_WALL
 	invoke changeMapPosTo, 5,7, MAP_TYPE_STONE_WALL
@@ -154,7 +172,7 @@ checkCollision proc posX, posY
 	invoke getMatrixIndex, posY, posX, MAP_WIDTH, MAP_HEIGHT
 	shl eax, 2
 	mov eax, [mapMatrix + eax]
-	.if eax == MAP_TYPE_STONE_WALL
+	.if eax != MAP_TYPE_DIRTY_FLOOR
 		mov eax, 1
 		ret
 	.endif
@@ -239,6 +257,12 @@ updatePlayer proc
 	.if @collisionType != 0
 		.if @collisionType == 1 ; wall
 			; TODO: dig the wall
+			invoke getMatrixIndex, @nextPosY, @nextPosX, MAP_WIDTH, MAP_HEIGHT
+			shl eax, 2
+			mov eax, [mapMatrix + eax]
+			.if eax == MAP_TYPE_DIRTY_WALL
+				invoke changeMapPosTo, @nextPosX, @nextPosY, MAP_TYPE_DIRTY_FLOOR
+			.endif
 		.elseif @collisionType == 2 ; enemy
 			; attack the enemy
 			invoke getEnemyAtPos, @nextPosX, @nextPosY
@@ -424,7 +448,9 @@ getPicOfMapType proc mapType
 	.if mapType == MAP_TYPE_DIRTY_FLOOR
 		mov eax, hDirtyFloorBmp
 	.elseif mapType == MAP_TYPE_STONE_WALL
-		mov eax, hStoneWallBmp
+		mov eax, hStoneWallZoneBmp
+	.elseif mapType == MAP_TYPE_DIRTY_WALL
+		mov eax, hDirtyWallZoneBmp
 	.endif
 	ret
 getPicOfMapType endp
@@ -438,7 +464,7 @@ initPlayer proc _level
 	.if _level == FIRST_LEVEL
 		mov player.posX, 0
 		mov player.posY, 0
-		mov player.health, 2
+		mov player.health, 4
 		mov player.attack, 1
 		mov player.attackRangeType, ATTACK_MODE_NORMAL
 		mov player.nextStep, STEP_NONE
@@ -459,7 +485,14 @@ _PaintGameFrame	proc hWnd, hDC
 	invoke _PaintMap, hWnd, hDC
 	invoke _PaintPlayer, hWnd, hDC
 	invoke _PaintEnemy, hWnd, hDC
-	; TODO: Paint Other
+	invoke _PaintHealthHeart, hWnd, hDC
+	mov edx, currentBeatInterval
+	sub edx, TOLERANCE_COUNT
+	.if currentBeatCount == TOLERANCE_COUNT
+	;	invoke _PaintHeart,hWnd, hDC, 0 
+	.elseif currentBeatCount == edx
+	;	invoke _PaintHeart,hWnd, hDC, 1
+	.endif
 	popad
 	ret
 _PaintGameFrame endp
@@ -471,7 +504,7 @@ _PaintGameFrame endp
 
 
 _PaintMap proc hWnd, hDC
-	local @posX, @posY, @type, @actualPosX, @actualPosY
+	local @posX, @posY, @actualPosX, @actualPosY
 	mov @posY, 0
 	.while (@posY < PAINT_WINDOW_HEIGHT)
 		mov @posX, 0
@@ -489,9 +522,8 @@ _PaintMap proc hWnd, hDC
 			invoke getMatrixIndex, @actualPosY, @actualPosX, MAP_WIDTH, MAP_HEIGHT
 			shl eax, 2
 			mov eax, [mapMatrix + eax]
-			mov  @type, eax
-			invoke getPicOfMapType, @type
-			invoke _PaintObjectAtPos, @posY, @posX, eax, hWnd, hDC
+			invoke getPicOfMapType, eax
+			invoke _PaintObjectAtPos, @posY, @posX, eax, NONEED_SHIFT, hWnd, hDC
 			pop ecx
 			inc @posX
 		.endw
@@ -523,8 +555,25 @@ actualPosToPaintWindowPos endp
 
 
 _PaintPlayer proc hWnd, hDC
+	local @actualPosY, @posX, @posY
 	invoke actualPosToPaintWindowPos, player.posX, player.posY
-	invoke _PaintObjectAtPos, ecx, eax, hPlayerBmp, hWnd, hDC
+	mov @posX, eax
+	mov @posY, ecx
+	invoke _PaintObjectAtPos, @posY, @posX, hPlayerBmp, NEED_SHIFT, hWnd, hDC
+	mov eax, player.posY
+	mov @actualPosY, eax
+	inc @actualPosY
+	inc @posY
+	.while @posY < PAINT_WINDOW_HEIGHT-1
+		; re paint map
+		invoke getMatrixIndex, @actualPosY, player.posX, MAP_WIDTH, MAP_HEIGHT
+		shl eax, 2
+		mov eax, [mapMatrix + eax]
+		invoke getPicOfMapType, eax
+		invoke _PaintObjectAtPos, @posY, @posX, eax, NONEED_SHIFT, hWnd, hDC
+		inc @actualPosY
+		inc @posY
+	.endw
 	ret
 _PaintPlayer endp
 
@@ -532,14 +581,34 @@ _PaintPlayer endp
 
 
 _PaintEnemy	proc uses edi hWnd, hDC
-	local @cnt
+	local @cnt, @actualPosY, @posX, @posY
 	mov @cnt, 0
 	mov edi, offset enemys
 	.while (@cnt < MAX_ENEMY_NUM)
 		mov eax, (Enemy ptr [edi]).health
-		.if eax > 0 ; BUG
+		.if eax > 0
+			mov eax, (Enemy ptr [edi]).posY
+			mov @actualPosY, eax
 			invoke actualPosToPaintWindowPos, (Enemy ptr [edi]).posX, (Enemy ptr [edi]).posY
-			invoke _PaintObjectAtPos, ecx, eax, (Enemy ptr [edi]).hBmp, hWnd, hDC
+			mov @posX, eax
+			mov @posY, ecx
+			invoke _PaintObjectAtPos, @posY, @posX, (Enemy ptr [edi]).hBmp, NEED_SHIFT, hWnd, hDC
+			; re paint map
+			inc @actualPosY
+			inc @posY
+			.while @posY < PAINT_WINDOW_HEIGHT-1
+				mov eax, @actualPosY
+				mov edx, (Enemy ptr [edi]).posX
+				.if (eax != player.posY) || (edx != player.posX)
+					invoke getMatrixIndex, @actualPosY, (Enemy ptr [edi]).posX, MAP_WIDTH, MAP_HEIGHT
+					shl eax, 2
+					mov eax, [mapMatrix + eax]
+					invoke getPicOfMapType, eax
+					invoke _PaintObjectAtPos, @posY, @posX, eax, NONEED_SHIFT, hWnd, hDC
+				.endif
+				inc @actualPosY
+				inc @posY
+			.endw
 		.endif
 		add edi, type Enemy
 		inc @cnt
@@ -547,16 +616,54 @@ _PaintEnemy	proc uses edi hWnd, hDC
 	ret
 _PaintEnemy endp
 
-
-
-
-_PaintObjectAtPos proc row, col, objectHBmp, hWnd, hDC
-	local @hDCmem
+_PaintHealthHeart proc hWnd, hDC
 	local @posX, @posY
+	local @hDCmem
 	invoke CreateCompatibleDC, hDC
 	mov @hDCmem, eax
-	mov eax, hDirtyFloorBmp
-	invoke SelectObject, @hDCmem, objectHBmp
+	invoke SelectObject, @hDCmem, hHealthHeartBmp
+
+	mov @posY, 1
+	mov @posX, PAINT_WINDOW_WIDTH*GRID_SIZE
+	xor ecx, ecx
+	.while (ecx < player.health)
+		sub @posX, HEALTH_HEART_WIDTH
+		RGB 255, 255, 255
+		push ecx
+		invoke TransparentBlt, hDC, @posX, @posY, HEALTH_HEART_WIDTH, HEALTH_HEART_HEIGHT, @hDCmem, 0, 0, HEALTH_HEART_WIDTH, HEALTH_HEART_HEIGHT, eax
+		pop ecx
+		inc ecx
+	.endw
+	invoke DeleteDC, @hDCmem
+	ret
+_PaintHealthHeart endp
+
+_PaintHeart proc hWnd, hDC, heartType
+	local @posX, @posY
+	local @hDCmem
+	invoke CreateCompatibleDC, hDC
+	mov @hDCmem, eax
+	.if heartType == 1
+		invoke SelectObject, @hDCmem, hHeartBigBmp
+	.else
+		invoke SelectObject, @hDCmem, hHeartSmallBmp
+	.endif
+	mov @posY, PAINT_WINDOW_HEIGHT*GRID_SIZE
+	sub @posY, HEART_HEIGHT
+	mov @posX, PAINT_WINDOW_WIDTH*GRID_SIZE/2
+	sub @posX, HEART_WIDTH/2
+	RGB 255,255,255
+	invoke TransparentBlt, hDC, @posX, @posY, HEART_WIDTH, HEART_HEIGHT, @hDCmem, 0, 0, HEART_WIDTH, HEART_HEIGHT, eax
+	invoke DeleteDC, @hDCmem
+	ret
+_PaintHeart endp
+
+
+_PaintObjectAtPos proc row, col, objectHBmp, shift, hWnd, hDC
+	local @hDCmem
+	local @posX, @posY, @w, @h
+	invoke CreateCompatibleDC, hDC
+	mov @hDCmem, eax
 	; calc x, y
 	mov eax, GRID_SIZE
 	mul col
@@ -564,7 +671,26 @@ _PaintObjectAtPos proc row, col, objectHBmp, hWnd, hDC
 	mov eax, GRID_SIZE
 	mul row
 	mov @posY, eax
-	invoke BitBlt, hDC, @posX, @posY, GRID_SIZE, GRID_SIZE, @hDCmem, 0, 0, SRCCOPY
+	.if (shift == NEED_SHIFT)
+		mov eax, paintCount
+		test eax, 01h
+		jz _even
+		add @posY, 5
+		_even:
+	.endif
+	
+
+	invoke GetObject, objectHBmp, type BITMAP, offset bitmapbuffer
+	mov eax, bitmapbuffer.bmWidth
+	mov @w, eax
+	mov eax, bitmapbuffer.bmHeight
+	mov @h, eax
+	add @posY, GRID_SIZE
+	sub @posY, eax
+	
+	invoke SelectObject, @hDCmem, objectHBmp
+	RGB 255, 255, 255
+	invoke TransparentBlt, hDC, @posX, @posY, @w, @h, @hDCmem, 0, 0, @w, @h, eax
 	invoke DeleteDC, @hDCmem
 	ret
 _PaintObjectAtPos endp
@@ -580,10 +706,10 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 
 		mov	eax, uMsg
 		.if eax == WM_KEYDOWN
-			; TODO: handle it 
-			mov eax, currentBeatCount
-			add eax, TOLERANCE_COUNT
-			.if (eax >= currentBeatInterval)
+			; >= next_beat - tolerance or < tolerance
+			mov eax, currentBeatInterval
+			sub eax, TOLERANCE_COUNT
+			.if (currentBeatCount > eax) || (currentBeatCount < TOLERANCE_COUNT) 
 				mov eax, wParam
 				.if eax == 37 ; left
 					mov player.nextStep, STEP_LEFT
@@ -615,9 +741,11 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 					mov eax, [beatIntervalsStage1 + eax]
 					mov currentBeatInterval, eax
 					add beatIntervalIndex, type DWORD
-
+				.elseif currentBeatCount == TOLERANCE_COUNT
+					inc paintCount
 					invoke updateStatus
 				.endif
+
 			.else
 				; Other timer
 			.endif

@@ -30,7 +30,7 @@ _WinMain proc
 		invoke	CreateWindowEx,WS_EX_CLIENTEDGE,\
 			offset szClassName,offset szClassName,\
 			WS_OVERLAPPEDWINDOW or WS_DLGFRAME,\
-			100, 100, GRID_SIZE*PAINT_WINDOW_WIDTH+20, GRID_SIZE*PAINT_WINDOW_HEIGHT+42,\
+			100, 100, WINDOW_WIDTH, WINDOW_HEIGHT,\
 			NULL,NULL,hInstance,NULL
 		mov	hWinMain,eax
 		invoke GetDC, eax
