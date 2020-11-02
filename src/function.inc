@@ -50,12 +50,13 @@ getEnemyAtPos			proto :DWORD, :DWORD
 
 
 
-ID_TIMER_BEAT			equ 1 ; TODO: 或许最终节拍不用timer（不等距）
+ID_TIMER_BEAT			equ 1 
 MAX_PATH_LENGTH			equ 100
 ; 游戏状态
 ; beat
-BEAT_INTERVAL			equ 1000  ; ms
-TOLERANCE_INTERVAL		equ 200   ; ms
+BEAT_INTERVAL			equ 100  ; ms
+;TOLERANCE_INTERVAL		equ 200  ; ms
+TOLERANCE_COUNT			equ 3
 
 ; map
 MAP_WIDTH				equ 14
@@ -145,8 +146,9 @@ Enemy ends
 	paintWindowPosX			dd ?
 	paintWindowPosY			dd ?
 
+	currentBeatCount   		dd ?
 	currentBeatInterval		dd ?
-
+	beatIntervalIndex		dd ?
 ; 常量定义
 .const
 	szClassName				db 'Window', 0
@@ -157,6 +159,17 @@ Enemy ends
 	szSlimeOrangePicPath	db 'image\\Slime_Orange.bmp', 0
 	szBatPicPath			db 'image\\Bat.bmp', 0
 	
-	BEAT_INTERVALS_STAGE1_COUNT equ 8
-	beatIntervalsStage1		dd 1000, 1000, 1000, 1000, 500, 500, 500, 500
+	beatIntervalsStage1	    dd 1, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 4, 5, 4, 5, 5, 6, 5, 5, 5, 5, 6
+							dd   5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 4, 5, 5, 4, 6, 5, 5, 5, 5, 6
+							dd   5, 5, 5, 6, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5
+							dd   5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5
+							dd   5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 4, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5 
+							dd   5, 4, 5, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6
+							dd   5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5
+							dd   5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5
+							dd   6, 5, 4, 5, 5, 4, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 4, 5, 4, 6, 5, 5, 5, 5, 6, 5, 5
+							dd   5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5 
+							dd   5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 4, 5, 4, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5
+							dd  5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6
+							dd  5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5
 	;mapDataStage1			DWORD 

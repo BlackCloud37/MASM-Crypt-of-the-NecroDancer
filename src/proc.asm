@@ -40,8 +40,15 @@ _DestroyResources endp
 
 
 startGame proc _level
-	invoke SetTimer,hWnd,ID_TIMER_BEAT,BEAT_INTERVAL,NULL
+	
+	mov beatIntervalIndex, 0
+	mov eax, beatIntervalIndex
+	mov eax, [beatIntervalsStage1 + eax]
+	mov currentBeatInterval, eax
+	add beatIntervalIndex, type DWORD
+	mov currentBeatCount, 0
 	invoke PlaySound, offset szBgmFilePath, NULL, SND_ASYNC or SND_FILENAME or SND_LOOP
+
 	invoke initMap, _level
 	invoke initPlayer, _level
 	; Enemy
@@ -574,21 +581,17 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 		mov	eax, uMsg
 		.if eax == WM_KEYDOWN
 			; TODO: handle it 
-			invoke GetTickCount
-			sub eax, dwBaseTick ; TODO: maybe should use uMsg's time here?
-			.if (eax > BEAT_INTERVAL - TOLERANCE_INTERVAL)
+			mov eax, currentBeatCount
+			add eax, TOLERANCE_COUNT
+			.if (eax >= currentBeatInterval)
 				mov eax, wParam
 				.if eax == 37 ; left
-					invoke MessageBeep, 0
 					mov player.nextStep, STEP_LEFT
 				.elseif eax == 38 ; up
-					invoke MessageBeep, 0
 					mov player.nextStep, STEP_UP
 				.elseif eax == 39 ; right
-					invoke MessageBeep, 0
 					mov player.nextStep, STEP_RIGHT
 				.elseif eax == 40 ; down
-					invoke MessageBeep, 0
 					mov player.nextStep, STEP_DOWN
 				.endif
 			.elseif
@@ -599,27 +602,36 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 		.elseif	eax == WM_TIMER
 			; TODO: update status
 			mov	eax,wParam
-			.if	eax ==	ID_TIMER_BEAT
-				invoke GetTickCount
-				mov dwBaseTick, eax
+			.if	eax == ID_TIMER_BEAT
+				inc currentBeatCount
+				mov eax, currentBeatInterval
+				.if eax == currentBeatCount ; on the beat
+					mov currentBeatCount, 0
+					; get next interval
+					.if beatIntervalIndex == sizeof beatIntervalsStage1
+						mov beatIntervalIndex, 0
+					.endif
+					mov eax, beatIntervalIndex
+					mov eax, [beatIntervalsStage1 + eax]
+					mov currentBeatInterval, eax
+					add beatIntervalIndex, type DWORD
+
+					invoke updateStatus
+				.endif
 			.else
 				; Other timer
 			.endif
-			invoke updateStatus
-			; and then re-paint
 			invoke InvalidateRect,hWnd,NULL,TRUE
 
 ;********************************************************************
 		.elseif	eax ==	WM_PAINT
 			invoke BeginPaint,hWnd,addr @stPS
-			; TODO: paint current status
 			mov @hDC, eax
 			invoke _PaintGameFrame, hWnd, @hDC 
 			invoke EndPaint,hWnd,addr @stPS
 		
 		.elseif	eax ==	WM_CREATE
-			; TODO: do init here
-			; TODO: play music
+			invoke SetTimer, hWnd,ID_TIMER_BEAT,BEAT_INTERVAL,NULL
 			invoke _InitResources
 			invoke startGame, FIRST_LEVEL
 ;********************************************************************
