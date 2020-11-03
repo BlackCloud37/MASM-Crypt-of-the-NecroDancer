@@ -25,6 +25,12 @@ _InitResources proc
 	mov hBatBmp, eax
 	invoke LoadImage, hInstance, addr szHealthHeartPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
 	mov hHealthHeartBmp, eax
+	invoke LoadImage, hInstance, addr szEnemyHeartPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hEnemyHeartBmp, eax
+	invoke LoadImage, hInstance, addr szEnemyEmptyHeartPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hEnemyEmptyHeartBmp, eax
+	invoke LoadImage, hInstance, addr szHealthEmptyHeartPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hHealthEmptyHeartBmp, eax
 	invoke LoadImage, hInstance, addr szHeartBigPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
 	mov hHeartBigBmp, eax
 	invoke LoadImage, hInstance, addr szHeartSmallPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
@@ -49,6 +55,9 @@ _DestroyResources proc
 	invoke DeleteObject, hHeartBigBmp
 	invoke DeleteObject, hHeartSmallBmp
 	invoke DeleteObject, hHealthHeartBmp
+	invoke DeleteObject, hHealthEmptyHeartBmp
+	invoke DeleteObject, hEnemyEmptyHeartBmp
+	invoke DeleteObject, hEnemyHeartBmp
 	ret
 _DestroyResources endp
 
@@ -66,7 +75,6 @@ startGame proc _level
 	add beatIntervalIndex, type DWORD
 	mov currentBeatCount, 0
 	invoke PlaySound, offset szBgmFilePath, NULL, SND_ASYNC or SND_FILENAME or SND_LOOP
-
 	invoke initMap, _level
 	invoke initPlayer, _level
 	; Enemy
@@ -157,7 +165,8 @@ initEnemy proc uses edi _level
 	mov edi, offset enemys
 	mov (Enemy ptr [edi]).posX, 4
 	mov (Enemy ptr [edi]).posY, 4
-	mov (Enemy ptr [edi]).health, 1
+	mov (Enemy ptr [edi]).health, 4
+	mov (Enemy ptr [edi]).maxHealth, 4
 	mov (Enemy ptr [edi]).attack, 1
 	mov (Enemy ptr [edi]).nextStep, STEP_NONE
 	mov (Enemy ptr [edi]).moveType, ENEMY_MOVETYPE_CIRCLE
@@ -465,6 +474,7 @@ initPlayer proc _level
 		mov player.posX, 0
 		mov player.posY, 0
 		mov player.health, 4
+		mov player.maxHealth, 4
 		mov player.attack, 1
 		mov player.attackRangeType, ATTACK_MODE_NORMAL
 		mov player.nextStep, STEP_NONE
@@ -483,23 +493,101 @@ initPlayer endp
 _PaintGameFrame	proc hWnd, hDC
 	pushad
 	invoke _PaintMap, hWnd, hDC
-	invoke _PaintPlayer, hWnd, hDC
-	invoke _PaintEnemy, hWnd, hDC
+	;invoke _PaintPlayer, hWnd, hDC
+	;invoke _PaintEnemy, hWnd, hDC
 	invoke _PaintHealthHeart, hWnd, hDC
 	mov edx, currentBeatInterval
 	sub edx, TOLERANCE_COUNT
-	.if currentBeatCount == TOLERANCE_COUNT
-	;	invoke _PaintHeart,hWnd, hDC, 0 
-	.elseif currentBeatCount == edx
-	;	invoke _PaintHeart,hWnd, hDC, 1
+	.if (currentBeatCount == 0)
+		invoke _PaintHeart,hWnd, hDC, 1
+	.else 
+		invoke _PaintHeart, hWnd, hDC, 0
 	.endif
+
 	popad
 	ret
 _PaintGameFrame endp
 
 
 
+_PaintEnemyAtPos proc posX, posY, hWnd, hDC
+	local @posX, @posY, @maxHealth, @health
+	local @hDCmem
+	invoke getEnemyAtPos, posX, posY
+	.if eax != 0
+		mov edx, eax
+		mov eax, (Enemy ptr [edx]).health
+		mov @health, eax
+		mov eax, (Enemy ptr [edx]).maxHealth
+		mov @maxHealth, eax
+		.if @health > 0
+			push edx
+			invoke actualPosToPaintWindowPos, (Enemy ptr [edx]).posX, (Enemy ptr [edx]).posY
+			pop edx
+			mov @posX, eax
+			mov @posY, ecx
+			invoke _PaintObjectAtPos, ecx, eax, (Enemy ptr [edx]).hBmp, NEED_SHIFT, hWnd, hDC
+			; TODO paint health
 
+			invoke CreateCompatibleDC, hDC
+			mov @hDCmem, eax
+			
+			; calc Y
+			mov eax, @posY
+			mov edx, GRID_SIZE
+			mul edx
+			sub eax, E_HEART_SIZE
+			mov @posY, eax
+			
+			mov eax, @posX
+			mov edx, GRID_SIZE
+			mul edx
+			add eax, GRID_SIZE/2
+			
+			mov edx, @maxHealth
+			test edx, 01h
+			jz _even
+			;odd
+			sub eax, E_HEART_SIZE/2
+			_even:
+			
+			mov edx, @maxHealth
+			inc edx
+			shr edx, 1
+			push eax
+			mov eax, E_HEART_SIZE
+			mul edx
+			mov edx, eax
+			pop eax
+			add eax, edx
+			mov @posX, eax
+
+			invoke SelectObject, @hDCmem, hEnemyHeartBmp
+			xor ecx, ecx
+			.while (ecx < @health)
+				sub @posX, E_HEART_SIZE
+				RGB 255, 255, 255
+				push ecx
+				invoke TransparentBlt, hDC, @posX, @posY, E_HEART_SIZE, E_HEART_SIZE, @hDCmem, 0, 0, E_HEART_SIZE, E_HEART_SIZE, eax
+				pop ecx
+				inc ecx
+			.endw
+			push ecx
+			invoke SelectObject, @hDCmem, hEnemyEmptyHeartBmp
+			pop ecx
+			.while (ecx < @maxHealth)	
+				sub @posX, E_HEART_SIZE
+				RGB 255, 255, 255
+				push ecx
+				invoke TransparentBlt, hDC, @posX, @posY, E_HEART_SIZE, E_HEART_SIZE, @hDCmem, 0, 0, E_HEART_SIZE, E_HEART_SIZE, eax
+				pop ecx
+				inc ecx
+			.endw
+			invoke DeleteDC, @hDCmem
+		.endif
+	.endif
+	ret
+_PaintEnemyAtPos endp
 
 
 
@@ -524,6 +612,13 @@ _PaintMap proc hWnd, hDC
 			mov eax, [mapMatrix + eax]
 			invoke getPicOfMapType, eax
 			invoke _PaintObjectAtPos, @posY, @posX, eax, NONEED_SHIFT, hWnd, hDC
+
+			mov eax, @actualPosX
+			mov ecx, @actualPosY
+			.if eax == player.posX && ecx == player.posY
+				invoke _PaintPlayer, hWnd, hDC
+			.endif
+			invoke _PaintEnemyAtPos, @actualPosX, @actualPosY, hWnd, hDC
 			pop ecx
 			inc @posX
 		.endw
@@ -553,13 +648,14 @@ actualPosToPaintWindowPos endp
 
 
 
-
 _PaintPlayer proc hWnd, hDC
 	local @actualPosY, @posX, @posY
 	invoke actualPosToPaintWindowPos, player.posX, player.posY
 	mov @posX, eax
 	mov @posY, ecx
 	invoke _PaintObjectAtPos, @posY, @posX, hPlayerBmp, NEED_SHIFT, hWnd, hDC
+	ret;
+	
 	mov eax, player.posY
 	mov @actualPosY, eax
 	inc @actualPosY
@@ -579,7 +675,7 @@ _PaintPlayer endp
 
 
 
-
+; dont use me
 _PaintEnemy	proc uses edi hWnd, hDC
 	local @cnt, @actualPosY, @posX, @posY
 	mov @cnt, 0
@@ -593,6 +689,7 @@ _PaintEnemy	proc uses edi hWnd, hDC
 			mov @posX, eax
 			mov @posY, ecx
 			invoke _PaintObjectAtPos, @posY, @posX, (Enemy ptr [edi]).hBmp, NEED_SHIFT, hWnd, hDC
+			
 			; re paint map
 			inc @actualPosY
 			inc @posY
@@ -621,12 +718,23 @@ _PaintHealthHeart proc hWnd, hDC
 	local @hDCmem
 	invoke CreateCompatibleDC, hDC
 	mov @hDCmem, eax
+	
 	invoke SelectObject, @hDCmem, hHealthHeartBmp
-
 	mov @posY, 1
 	mov @posX, PAINT_WINDOW_WIDTH*GRID_SIZE
 	xor ecx, ecx
 	.while (ecx < player.health)
+		sub @posX, HEALTH_HEART_WIDTH
+		RGB 255, 255, 255
+		push ecx
+		invoke TransparentBlt, hDC, @posX, @posY, HEALTH_HEART_WIDTH, HEALTH_HEART_HEIGHT, @hDCmem, 0, 0, HEALTH_HEART_WIDTH, HEALTH_HEART_HEIGHT, eax
+		pop ecx
+		inc ecx
+	.endw
+	push ecx
+	invoke SelectObject, @hDCmem, hHealthEmptyHeartBmp
+	pop ecx
+	.while (ecx < player.maxHealth)	
 		sub @posX, HEALTH_HEART_WIDTH
 		RGB 255, 255, 255
 		push ecx
@@ -709,7 +817,7 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 			; >= next_beat - tolerance or < tolerance
 			mov eax, currentBeatInterval
 			sub eax, TOLERANCE_COUNT
-			.if (currentBeatCount > eax) || (currentBeatCount < TOLERANCE_COUNT) 
+			.if (isMiss == FALSE) && ((currentBeatCount > eax) || (currentBeatCount < TOLERANCE_COUNT))
 				mov eax, wParam
 				.if eax == 37 ; left
 					mov player.nextStep, STEP_LEFT
@@ -720,13 +828,13 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 				.elseif eax == 40 ; down
 					mov player.nextStep, STEP_DOWN
 				.endif
-			.elseif
+			.else
 				; miss
+				mov isMiss, TRUE
 				invoke MessageBeep, -1
 			.endif
 
 		.elseif	eax == WM_TIMER
-			; TODO: update status
 			mov	eax,wParam
 			.if	eax == ID_TIMER_BEAT
 				inc currentBeatCount
@@ -744,13 +852,12 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 				.elseif currentBeatCount == TOLERANCE_COUNT
 					inc paintCount
 					invoke updateStatus
+					mov isMiss, FALSE
 				.endif
-
 			.else
 				; Other timer
 			.endif
-			invoke InvalidateRect,hWnd,NULL,TRUE
-
+			invoke InvalidateRect,hWnd,NULL,FALSE
 ;********************************************************************
 		.elseif	eax ==	WM_PAINT
 			invoke BeginPaint,hWnd,addr @stPS

@@ -72,7 +72,7 @@ MAP_WIDTH				equ 14
 MAP_HEIGHT				equ 14
 
 ; enemy
-MAX_ENEMY_NUM			equ 10
+MAX_ENEMY_NUM			equ 5
 
 ; level
 FIRST_LEVEL				equ 1
@@ -94,6 +94,7 @@ HEALTH_HEART_WIDTH		equ 24
 HEALTH_HEART_HEIGHT		equ 22
 HEART_WIDTH				equ 80
 HEART_HEIGHT			equ 82
+E_HEART_SIZE			equ 12
 PAINT_WINDOW_WIDTH		equ 12
 PAINT_WINDOW_HEIGHT		equ 9
 NEED_SHIFT				equ 1
@@ -118,6 +119,7 @@ Player struct
 	posX				dd ?
 	posY				dd ?
 	health				dd ?
+	maxHealth			dd ?
 	attack				dd ?
 	attackRangeType		dd ?
 	nextStep			dd ?
@@ -128,6 +130,7 @@ Enemy struct
 	posX				dd ?
 	posY				dd ?
 	health				dd ?
+	maxHealth			dd ?
 	attack				dd ?
 	nextStep			dd ?
 	moveType			dd ?
@@ -156,6 +159,9 @@ Enemy ends
 	hSlimeOrangeBmp			dd ?
 	hBatBmp					dd ?
 	hHealthHeartBmp			dd ?
+	hHealthEmptyHeartBmp	dd ?
+	hEnemyHeartBmp			dd ?
+	hEnemyEmptyHeartBmp		dd ?
 	hHeartBigBmp			dd ?
 	hHeartSmallBmp			dd ?
 	bitmapbuffer			BITMAP <>
@@ -165,8 +171,8 @@ Enemy ends
 	level					dd ?
 	player					Player <>
 	enemys					Enemy MAX_ENEMY_NUM dup(<,,0,0,0,0,0,0>)
-	dwBaseTick				dd ? ; 上一个节拍的时间戳
-
+	;dwBaseTick				dd ? ; 上一个节拍的时间戳
+	isMiss					dd ?
 	; 绘图状态
 	paintWindowPosX			dd ?
 	paintWindowPosY			dd ?
@@ -189,10 +195,13 @@ Enemy ends
 	szSlimeOrangePicPath	db 'image\\Slime_Orange.bmp', 0
 	szBatPicPath			db 'image\\Bat.bmp', 0
 	szHealthHeartPicPath	db 'image\\Health_Heart.bmp', 0
+	szHealthEmptyHeartPicPath db 'image\\Health_Empty_Heart.bmp', 0
+	szEnemyHeartPicPath		db 'image\\Enemy_Heart.bmp', 0
+	szEnemyEmptyHeartPicPath db 'image\\Enemy_Empty_Heart.bmp', 0
 	szHeartSmallPicPath		db 'image\\Heart_Small.bmp', 0
 	szHeartBigPicPath		db 'image\\Heart_Big.bmp', 0
 	
-	beatIntervalsStage1	    dd 1, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 4, 5, 4, 5, 5, 6, 5, 5, 5, 5, 6
+	beatIntervalsStage1	    dd  1, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 4, 5, 4, 5, 5, 6, 5, 5, 5, 5, 6
 							dd   5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 4, 5, 5, 4, 6, 5, 5, 5, 5, 6
 							dd   5, 5, 5, 6, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5
 							dd   5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5
