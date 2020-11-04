@@ -43,6 +43,14 @@ _InitResources proc
 	mov hDirtyWallBmp, eax
 	invoke LoadImage, hInstance, addr szDirtyWallZonePicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
 	mov hDirtyWallZoneBmp, eax
+	invoke LoadImage, hInstance, addr szBedrockWallZonePicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hBedrockWallZoneBmp, eax
+	invoke LoadImage, hInstance, addr szGoldenWallZonePicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hGoldenWallZoneBmp, eax
+	invoke LoadImage, hInstance, addr szTrapPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hTrapBmp, eax
+	invoke LoadImage, hInstance, addr szStairsPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hStairsBmp, eax
 	invoke LoadImage, hInstance, addr szSlimeOrangePicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
 	mov hSlimeOrangeBmp, eax
 	invoke LoadImage, hInstance, addr szBatPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
@@ -60,12 +68,6 @@ _InitResources proc
 	invoke LoadImage, hInstance, addr szHeartSmallPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
 	mov hHeartSmallBmp, eax
 
-	invoke LoadImage, hInstance, addr szBedrockWallZonePicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
-	mov hBedrockWallZoneBmp, eax
-	invoke LoadImage, hInstance, addr szGoldenWallZonePicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
-	mov hGoldenWallZoneBmp, eax
-	invoke LoadImage, hInstance, addr szTrapPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
-	mov hTrapBmp, eax
 	ret
 _InitResources endp
 
@@ -84,6 +86,7 @@ _DestroyResources proc
 	invoke DeleteObject, hBedrockWallZoneBmp
 	invoke DeleteObject, hGoldenWallZoneBmp
 	invoke DeleteObject, hTrapBmp
+	invoke DeleteObject, hStairsBmp
 	invoke DeleteObject, hSlimeOrangeBmp
 	invoke DeleteObject, hBatBmp
 	invoke DeleteObject, hHeartBigBmp
@@ -109,10 +112,6 @@ startGame proc _level
 	add beatIntervalIndex, type DWORD
 	mov currentBeatCount, 0
 	invoke PlaySound, offset szBgmFilePath, NULL, SND_ASYNC or SND_FILENAME or SND_LOOP
-	invoke initMap, _level
-	invoke initPlayer, _level
-	; Enemy
-	invoke initEnemy, _level
 	; Others
 	invoke updateStatus
 	ret
@@ -164,56 +163,12 @@ changeMapPosTo endp
 
 
 
-initMap proc _level
-	local @posX, @posY
-	ret
-	mov @posY, 0
-	.while (@posY < MAP_HEIGHT)
-		mov @posX, 0
-		push ecx
-		.while (@posX < MAP_WIDTH)
-			push ecx
-			invoke changeMapPosTo, @posX, @posY, MAP_TYPE_DIRTY_FLOOR
-			inc @posX
-			pop ecx
-		.endw
-		inc @posY
-		pop ecx
-	.endw
-	invoke changeMapPosTo, 1,1, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 1,2, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 1,3, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 2,1, MAP_TYPE_DIRTY_WALL
-	invoke changeMapPosTo, 3,1, MAP_TYPE_DIRTY_WALL
-	invoke changeMapPosTo, 2,2, MAP_TYPE_DIRTY_WALL
-	invoke changeMapPosTo, 5,5, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 5,6, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 5,7, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 7,6, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 8,6, MAP_TYPE_STONE_WALL
-	invoke changeMapPosTo, 9,6, MAP_TYPE_STONE_WALL
-	ret
-initMap endp
 
-initEnemy proc uses edi _level
-	mov edi, offset enemys
-	mov (Enemy ptr [edi]).posX, 4
-	mov (Enemy ptr [edi]).posY, 4
-	mov (Enemy ptr [edi]).health, 4
-	mov (Enemy ptr [edi]).maxHealth, 4
-	mov (Enemy ptr [edi]).attack, 1
-	mov (Enemy ptr [edi]).nextStep, STEP_NONE
-	mov (Enemy ptr [edi]).moveType, ENEMY_MOVETYPE_FOLLOW
-	mov (Enemy ptr [edi]).tickCnt, 0
-	mov eax, hSlimeOrangeBmp
-	mov (Enemy ptr [edi]).hBmp, eax
-	ret
-initEnemy endp
 
 
 checkCollision proc posX, posY
 	invoke getMapTypeAtPos, posX, posY
-	.if eax == MAP_TYPE_TRAP
+	.if eax == MAP_TYPE_TRAP || eax == MAP_TYPE_STAIRS
 		mov eax, 0
 		ret
 	.endif
@@ -250,7 +205,7 @@ getEnemyAtPos proc uses edi posX, posY
 	local @cnt
 	mov @cnt, 0
 	mov edi, offset enemys
-	.while (@cnt < MAX_ENEMY_NUM)
+	.while (@cnt < sizeof enemys)
 		mov eax, (Enemy ptr [edi]).posX
 		mov ecx, (Enemy ptr [edi]).posY
 		mov edx, (Enemy ptr [edi]).health
@@ -259,7 +214,7 @@ getEnemyAtPos proc uses edi posX, posY
 			ret
 		.endif
 		add edi, type Enemy
-		inc @cnt
+		add @cnt, type Enemy
 	.endw
 	mov eax, 0
 	ret
@@ -281,6 +236,8 @@ updatePlayer proc
 	invoke getMapTypeAtPos, player.posX, player.posY
 	.if (eax == MAP_TYPE_TRAP)
 		mov player.health, 0
+	.elseif (eax == MAP_TYPE_STAIRS)
+		; TODO:WIN
 	.endif
 	.if (player.nextStep == STEP_NONE)
 		ret
@@ -310,7 +267,7 @@ updatePlayer proc
 	mov @collisionType, eax
 	.if @collisionType != 0
 		.if @collisionType == 1 ; wall
-			; TODO: dig the wall
+			; dig the wall
 			invoke getMapTypeAtPos, @nextPosX, @nextPosY
 			.if eax == MAP_TYPE_DIRTY_WALL
 				invoke changeMapPosTo, @nextPosX, @nextPosY, MAP_TYPE_DIRTY_FLOOR
@@ -417,7 +374,7 @@ updateEnemy proc uses edi
 	mov edi, offset enemys
 	mov @cnt, 0
 
-	.while(@cnt < MAX_ENEMY_NUM)
+	.while(@cnt < sizeof enemys)
 		mov eax, (Enemy ptr [edi]).posX
 		mov ecx, (Enemy ptr [edi]).posY
 		invoke getMapTypeAtPos, eax, ecx
@@ -500,22 +457,19 @@ updateEnemy proc uses edi
 		mov (Enemy ptr [edi]).posY, eax
 		continue:
 		add edi, type Enemy
-		inc @cnt
+		add @cnt, type Enemy
 	.endw
 
 	ret	
 updateEnemy endp
 
 updateStatus proc
-	; TODO: Åö×²¼ì²â
-	
 	invoke updatePlayer
-	
-	; TODO: Update Enemy and Map
 	invoke updateEnemy
 	.if player.health == 0
 		invoke PostMessage, hWinMain, WM_QUIT, NULL, NULL
 	.endif
+
 	; Update paint window
 	mov eax, player.posX
 	mov paintWindowPosX, eax
@@ -561,30 +515,23 @@ getPicOfMapType proc mapType
 		mov eax, hGoldenWallZoneBmp
 	.elseif mapType == MAP_TYPE_TRAP
 		mov eax, hTrapBmp
+	.elseif mapType == MAP_TYPE_STAIRS
+		mov eax, hStairsBmp
 	.endif
 	ret
 getPicOfMapType endp
 
 
-
-
-
-
-initPlayer proc _level
-	.if _level == FIRST_LEVEL
-		mov player.posX, 5
-		mov player.posY, 5
-		mov player.health, 4
-		mov player.maxHealth, 4
-		mov player.attack, 1
-		mov player.attackRangeType, ATTACK_MODE_NORMAL
-		mov player.nextStep, STEP_NONE
-		mov player.coinCount, 0
+getPicOfEnemyType proc enemyType
+	.if enemyType == ENEMY_TYPE_BAT
+		mov eax, hBatBmp
+	.elseif enemyType == ENEMY_TYPE_SLIME_ORANGE
+		mov eax, hSlimeOrangeBmp
+	.elseif enemyType == ENEMY_TYPE_SLIME_BLUE
+	.elseif enemyType == ENEMY_TYPE_SKELETON
 	.endif
 	ret
-initPlayer endp
-
-
+getPicOfEnemyType endp
 
 
 
@@ -627,7 +574,8 @@ _PaintEnemyAtPos proc posX, posY, hWnd, hDC
 			pop edx
 			mov @posX, eax
 			mov @posY, ecx
-			invoke _PaintObjectAtPos, ecx, eax, (Enemy ptr [edx]).hBmp, NEED_SHIFT, hWnd, hDC
+			invoke getPicOfEnemyType, (Enemy ptr [edx]).hType
+			invoke _PaintObjectAtPos, @posY, @posX, eax, NEED_SHIFT, hWnd, hDC
 			
 			; paint health
 			invoke CreateCompatibleDC, hDC
@@ -648,10 +596,8 @@ _PaintEnemyAtPos proc posX, posY, hWnd, hDC
 			mov edx, @maxHealth
 			test edx, 01h
 			jz _even
-			;odd
 			sub eax, E_HEART_SIZE/2
 			_even:
-			
 			mov edx, @maxHealth
 			inc edx
 			shr edx, 1
@@ -748,7 +694,7 @@ actualPosToPaintWindowPos endp
 
 
 _PaintPlayer proc hWnd, hDC
-	local @actualPosY, @posX, @posY
+	local @posX, @posY
 	invoke actualPosToPaintWindowPos, player.posX, player.posY
 	mov @posX, eax
 	mov @posY, ecx
@@ -771,7 +717,7 @@ _PaintHealthHeart proc hWnd, hDC
 	mov @posX, PAINT_WINDOW_WIDTH*GRID_SIZE
 	xor ecx, ecx
 	.while (ecx < player.health)
-		sub @posX, HEALTH_HEART_WIDTH
+		sub @posX, HEALTH_HEART_WIDTH+2
 		RGB 255, 255, 255
 		push ecx
 		invoke TransparentBlt, hDC, @posX, @posY, HEALTH_HEART_WIDTH, HEALTH_HEART_HEIGHT, @hDCmem, 0, 0, HEALTH_HEART_WIDTH, HEALTH_HEART_HEIGHT, eax
@@ -782,7 +728,7 @@ _PaintHealthHeart proc hWnd, hDC
 	invoke SelectObject, @hDCmem, hHealthEmptyHeartBmp
 	pop ecx
 	.while (ecx < player.maxHealth)	
-		sub @posX, HEALTH_HEART_WIDTH
+		sub @posX, HEALTH_HEART_WIDTH+2
 		RGB 255, 255, 255
 		push ecx
 		invoke TransparentBlt, hDC, @posX, @posY, HEALTH_HEART_WIDTH, HEALTH_HEART_HEIGHT, @hDCmem, 0, 0, HEALTH_HEART_WIDTH, HEALTH_HEART_HEIGHT, eax
