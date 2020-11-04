@@ -5,6 +5,30 @@ option casemap:none
 include function.inc
 
 .code
+rand proc uses ebx lower, upper
+	local @mask
+	mov eax, randMask
+	mov @mask, eax
+	mov eax, upper
+	mov cx, ax
+	mov eax, lower
+	mov dx, ax
+	sub cx, dx
+	push ecx
+	invoke GetTickCount
+	xor eax, @mask
+	mov randMask, eax
+	pop ecx
+	
+	shr eax, 1
+
+	xor dx, dx
+	div cx       ; here dx contains the remainder of the division - from 0 to 9
+	mov eax, lower
+	add dx, ax
+	movzx eax, dx
+	ret
+rand endp
 
 _InitResources proc
 	invoke LoadImage, hInstance, addr szPlayerPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
@@ -35,6 +59,13 @@ _InitResources proc
 	mov hHeartBigBmp, eax
 	invoke LoadImage, hInstance, addr szHeartSmallPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
 	mov hHeartSmallBmp, eax
+
+	invoke LoadImage, hInstance, addr szBedrockWallZonePicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hBedrockWallZoneBmp, eax
+	invoke LoadImage, hInstance, addr szGoldenWallZonePicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hGoldenWallZoneBmp, eax
+	invoke LoadImage, hInstance, addr szTrapPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hTrapBmp, eax
 	ret
 _InitResources endp
 
@@ -50,6 +81,9 @@ _DestroyResources proc
 	invoke DeleteObject, hStoneWallZoneBmp
 	invoke DeleteObject, hDirtyWallBmp
 	invoke DeleteObject, hDirtyWallZoneBmp
+	invoke DeleteObject, hBedrockWallZoneBmp
+	invoke DeleteObject, hGoldenWallZoneBmp
+	invoke DeleteObject, hTrapBmp
 	invoke DeleteObject, hSlimeOrangeBmp
 	invoke DeleteObject, hBatBmp
 	invoke DeleteObject, hHeartBigBmp
@@ -132,7 +166,7 @@ changeMapPosTo endp
 
 initMap proc _level
 	local @posX, @posY
-	; TODO: ¶ÁÎÄ¼þ
+	ret
 	mov @posY, 0
 	.while (@posY < MAP_HEIGHT)
 		mov @posX, 0
@@ -169,7 +203,7 @@ initEnemy proc uses edi _level
 	mov (Enemy ptr [edi]).maxHealth, 4
 	mov (Enemy ptr [edi]).attack, 1
 	mov (Enemy ptr [edi]).nextStep, STEP_NONE
-	mov (Enemy ptr [edi]).moveType, ENEMY_MOVETYPE_CIRCLE
+	mov (Enemy ptr [edi]).moveType, ENEMY_MOVETYPE_FOLLOW
 	mov (Enemy ptr [edi]).tickCnt, 0
 	mov eax, hSlimeOrangeBmp
 	mov (Enemy ptr [edi]).hBmp, eax
@@ -178,9 +212,11 @@ initEnemy endp
 
 
 checkCollision proc posX, posY
-	invoke getMatrixIndex, posY, posX, MAP_WIDTH, MAP_HEIGHT
-	shl eax, 2
-	mov eax, [mapMatrix + eax]
+	invoke getMapTypeAtPos, posX, posY
+	.if eax == MAP_TYPE_TRAP
+		mov eax, 0
+		ret
+	.endif
 	.if eax != MAP_TYPE_DIRTY_FLOOR
 		mov eax, 1
 		ret
@@ -231,12 +267,21 @@ getEnemyAtPos endp
 
 
 
-
+getMapTypeAtPos proc posX, posY
+	invoke getMatrixIndex, posY, posX, MAP_WIDTH, MAP_HEIGHT
+	shl eax, 2
+	mov eax, [mapMatrix + eax]
+	ret
+getMapTypeAtPos endp
 
 
 
 updatePlayer proc
 	local @nextPosX, @nextPosY, @collisionType
+	invoke getMapTypeAtPos, player.posX, player.posY
+	.if (eax == MAP_TYPE_TRAP)
+		mov player.health, 0
+	.endif
 	.if (player.nextStep == STEP_NONE)
 		ret
 	.endif
@@ -266,9 +311,7 @@ updatePlayer proc
 	.if @collisionType != 0
 		.if @collisionType == 1 ; wall
 			; TODO: dig the wall
-			invoke getMatrixIndex, @nextPosY, @nextPosX, MAP_WIDTH, MAP_HEIGHT
-			shl eax, 2
-			mov eax, [mapMatrix + eax]
+			invoke getMapTypeAtPos, @nextPosX, @nextPosY
 			.if eax == MAP_TYPE_DIRTY_WALL
 				invoke changeMapPosTo, @nextPosX, @nextPosY, MAP_TYPE_DIRTY_FLOOR
 			.endif
@@ -299,8 +342,9 @@ updatePlayer proc
 updatePlayer endp
 
 decideNextStep proc moveType, posX, posY, tickCnt
+	mov eax, STEP_NONE
 	.if moveType == ENEMY_MOVETYPE_STOP
-		mov eax, STEP_NONE
+		
 	.elseif moveType == ENEMY_MOVETYPE_CIRCLE
 		.if tickCnt == 0
 			mov eax, STEP_LEFT
@@ -321,7 +365,48 @@ decideNextStep proc moveType, posX, posY, tickCnt
 			mov ecx, 0
 		.endif
 	.elseif moveType == ENEMY_MOVETYPE_RANDOM
-		;TODO
+		.if tickCnt == 0
+			invoke rand, 1, 5
+			mov ecx, 1
+		.else
+			mov ecx, 0
+		.endif
+	.elseif moveType == ENEMY_MOVETYPE_FOLLOW
+		.if tickCnt == 0
+			invoke rand, 0, 2
+			.if eax == 0
+				mov eax, player.posX
+				.if eax < posX
+					mov eax, STEP_LEFT
+				.elseif eax > posX
+					mov eax, STEP_RIGHT
+				.else
+					mov eax, player.posY
+					.if eax < posY
+						mov eax, STEP_UP
+					.elseif eax > posY
+						mov eax, STEP_DOWN
+					.endif
+				.endif
+			.elseif eax == 1
+				mov eax, player.posY
+				.if eax < posY
+					mov eax, STEP_UP
+				.elseif eax > posY
+					mov eax, STEP_DOWN
+				.else
+					mov eax, player.posX
+					.if eax < posX
+						mov eax, STEP_LEFT
+					.elseif eax > posX
+						mov eax, STEP_RIGHT
+					.endif
+				.endif
+			.endif
+			mov ecx, 1
+		.else
+			mov ecx, 0
+		.endif
 	.endif
 	ret
 decideNextStep endp
@@ -333,6 +418,13 @@ updateEnemy proc uses edi
 	mov @cnt, 0
 
 	.while(@cnt < MAX_ENEMY_NUM)
+		mov eax, (Enemy ptr [edi]).posX
+		mov ecx, (Enemy ptr [edi]).posY
+		invoke getMapTypeAtPos, eax, ecx
+		.if (eax == MAP_TYPE_TRAP)
+			mov (Enemy ptr [edi]).health, 0
+		.endif
+
 		mov eax, (Enemy ptr [edi]).health
 		.if (eax == 0)
 			jmp continue
@@ -341,7 +433,7 @@ updateEnemy proc uses edi
 		mov @prevTickCnt, eax
 		invoke decideNextStep, (Enemy ptr [edi]).moveType, (Enemy ptr [edi]).posX, (Enemy ptr [edi]).posY, (Enemy ptr [edi]).tickCnt
 		mov (Enemy ptr [edi]).nextStep, eax
-		mov (Enemy ptr [edi]).tickCnt, ecx		
+		mov (Enemy ptr [edi]).tickCnt, ecx	
 		.if (eax == STEP_NONE)
 			jmp continue
 		.endif
@@ -373,8 +465,11 @@ updateEnemy proc uses edi
 		invoke checkCollision, @nextPosX, @nextPosY
 		mov @collisionType, eax
 		.if @collisionType != 0
-			mov eax, @prevTickCnt
-			mov (Enemy ptr [edi]).tickCnt, eax
+			mov eax,(Enemy ptr [edi]).moveType
+			.if eax == ENEMY_MOVETYPE_RANDOM
+				mov eax, @prevTickCnt
+				mov (Enemy ptr [edi]).tickCnt, eax
+			.endif
 			.if @collisionType == 1 ; wall
 				; TODO: dig the wall
 				jmp continue
@@ -460,6 +555,12 @@ getPicOfMapType proc mapType
 		mov eax, hStoneWallZoneBmp
 	.elseif mapType == MAP_TYPE_DIRTY_WALL
 		mov eax, hDirtyWallZoneBmp
+	.elseif mapType == MAP_TYPE_BEDROCK
+		mov eax, hBedrockWallZoneBmp
+	.elseif mapType == MAP_TYPE_GOLDEN_WALL
+		mov eax, hGoldenWallZoneBmp
+	.elseif mapType == MAP_TYPE_TRAP
+		mov eax, hTrapBmp
 	.endif
 	ret
 getPicOfMapType endp
@@ -471,8 +572,8 @@ getPicOfMapType endp
 
 initPlayer proc _level
 	.if _level == FIRST_LEVEL
-		mov player.posX, 0
-		mov player.posY, 0
+		mov player.posX, 5
+		mov player.posY, 5
 		mov player.health, 4
 		mov player.maxHealth, 4
 		mov player.attack, 1
@@ -527,8 +628,8 @@ _PaintEnemyAtPos proc posX, posY, hWnd, hDC
 			mov @posX, eax
 			mov @posY, ecx
 			invoke _PaintObjectAtPos, ecx, eax, (Enemy ptr [edx]).hBmp, NEED_SHIFT, hWnd, hDC
-			; TODO paint health
-
+			
+			; paint health
 			invoke CreateCompatibleDC, hDC
 			mov @hDCmem, eax
 			
@@ -607,9 +708,7 @@ _PaintMap proc hWnd, hDC
 			mov @actualPosY, eax
 			mov eax, paintWindowPosY
 			add @actualPosY, eax
-			invoke getMatrixIndex, @actualPosY, @actualPosX, MAP_WIDTH, MAP_HEIGHT
-			shl eax, 2
-			mov eax, [mapMatrix + eax]
+			invoke getMapTypeAtPos, @actualPosX, @actualPosY
 			invoke getPicOfMapType, eax
 			invoke _PaintObjectAtPos, @posY, @posX, eax, NONEED_SHIFT, hWnd, hDC
 
@@ -654,64 +753,12 @@ _PaintPlayer proc hWnd, hDC
 	mov @posX, eax
 	mov @posY, ecx
 	invoke _PaintObjectAtPos, @posY, @posX, hPlayerBmp, NEED_SHIFT, hWnd, hDC
-	ret;
-	
-	mov eax, player.posY
-	mov @actualPosY, eax
-	inc @actualPosY
-	inc @posY
-	.while @posY < PAINT_WINDOW_HEIGHT-1
-		; re paint map
-		invoke getMatrixIndex, @actualPosY, player.posX, MAP_WIDTH, MAP_HEIGHT
-		shl eax, 2
-		mov eax, [mapMatrix + eax]
-		invoke getPicOfMapType, eax
-		invoke _PaintObjectAtPos, @posY, @posX, eax, NONEED_SHIFT, hWnd, hDC
-		inc @actualPosY
-		inc @posY
-	.endw
 	ret
 _PaintPlayer endp
 
 
 
-; dont use me
-_PaintEnemy	proc uses edi hWnd, hDC
-	local @cnt, @actualPosY, @posX, @posY
-	mov @cnt, 0
-	mov edi, offset enemys
-	.while (@cnt < MAX_ENEMY_NUM)
-		mov eax, (Enemy ptr [edi]).health
-		.if eax > 0
-			mov eax, (Enemy ptr [edi]).posY
-			mov @actualPosY, eax
-			invoke actualPosToPaintWindowPos, (Enemy ptr [edi]).posX, (Enemy ptr [edi]).posY
-			mov @posX, eax
-			mov @posY, ecx
-			invoke _PaintObjectAtPos, @posY, @posX, (Enemy ptr [edi]).hBmp, NEED_SHIFT, hWnd, hDC
-			
-			; re paint map
-			inc @actualPosY
-			inc @posY
-			.while @posY < PAINT_WINDOW_HEIGHT-1
-				mov eax, @actualPosY
-				mov edx, (Enemy ptr [edi]).posX
-				.if (eax != player.posY) || (edx != player.posX)
-					invoke getMatrixIndex, @actualPosY, (Enemy ptr [edi]).posX, MAP_WIDTH, MAP_HEIGHT
-					shl eax, 2
-					mov eax, [mapMatrix + eax]
-					invoke getPicOfMapType, eax
-					invoke _PaintObjectAtPos, @posY, @posX, eax, NONEED_SHIFT, hWnd, hDC
-				.endif
-				inc @actualPosY
-				inc @posY
-			.endw
-		.endif
-		add edi, type Enemy
-		inc @cnt
-	.endw
-	ret
-_PaintEnemy endp
+
 
 _PaintHealthHeart proc hWnd, hDC
 	local @posX, @posY
@@ -817,7 +864,7 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 			; >= next_beat - tolerance or < tolerance
 			mov eax, currentBeatInterval
 			sub eax, TOLERANCE_COUNT
-			.if (isMiss == FALSE) && ((currentBeatCount > eax) || (currentBeatCount < TOLERANCE_COUNT))
+			.if (isMiss == FALSE) && ((currentBeatCount >= eax) || (currentBeatCount <= TOLERANCE_COUNT))
 				mov eax, wParam
 				.if eax == 37 ; left
 					mov player.nextStep, STEP_LEFT
@@ -828,10 +875,17 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 				.elseif eax == 40 ; down
 					mov player.nextStep, STEP_DOWN
 				.endif
+				mov isUpdated, TRUE
+				mov isMiss, TRUE
+				inc paintCount
+				invoke updateStatus
+				invoke InvalidateRect,hWnd,NULL,FALSE
 			.else
 				; miss
-				mov isMiss, TRUE
-				invoke MessageBeep, -1
+				.if isMiss == FALSE
+					mov isMiss, TRUE
+					invoke MessageBeep, -1
+				.endif
 			.endif
 
 		.elseif	eax == WM_TIMER
@@ -849,9 +903,12 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 					mov eax, [beatIntervalsStage1 + eax]
 					mov currentBeatInterval, eax
 					add beatIntervalIndex, type DWORD
-				.elseif currentBeatCount == TOLERANCE_COUNT
-					inc paintCount
-					invoke updateStatus
+				;.elseif currentBeatCount == TOLERANCE_COUNT
+					.if isUpdated == FALSE
+						inc paintCount
+						invoke updateStatus
+					.endif
+					mov isUpdated, FALSE
 					mov isMiss, FALSE
 				.endif
 			.else

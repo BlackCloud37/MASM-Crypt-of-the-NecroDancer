@@ -48,7 +48,8 @@ checkCollision			proto :DWORD, :DWORD						; 检查位置是否有实体
 decideNextStep			proto :DWORD,:DWORD,:DWORD,:DWORD			; 获取敌人下一步
 
 getEnemyAtPos			proto :DWORD, :DWORD						
-
+getMapTypeAtPos			proto :DWORD, :DWORD
+rand					proto :DWORD, :DWORD
 
 RGB macro r, g, b
 	xor eax, eax
@@ -68,11 +69,11 @@ BEAT_INTERVAL			equ 100  ; ms
 TOLERANCE_COUNT			equ 2
 
 ; map
-MAP_WIDTH				equ 14
-MAP_HEIGHT				equ 14
+MAP_WIDTH				equ 28
+MAP_HEIGHT				equ 28
 
 ; enemy
-MAX_ENEMY_NUM			equ 5
+MAX_ENEMY_NUM			equ 10
 
 ; level
 FIRST_LEVEL				equ 1
@@ -104,15 +105,18 @@ WINDOW_WIDTH			equ 620
 
 ; 地图类型定义
 MAP_TYPE_DIRTY_FLOOR	equ 0
-MAP_TYPE_STONE_WALL		equ 1
-MAP_TYPE_DIRTY_WALL		equ 2
+MAP_TYPE_STONE_WALL		equ 2
+MAP_TYPE_DIRTY_WALL		equ 1
+MAP_TYPE_BEDROCK		equ 3
+MAP_TYPE_GOLDEN_WALL		equ 4
+MAP_TYPE_TRAP			equ 5
+MAP_TYPE_STAIRS			equ 6
 
 ; enemy
-
 ENEMY_MOVETYPE_RANDOM   equ 0
 ENEMY_MOVETYPE_CIRCLE   equ 1
 ENEMY_MOVETYPE_STOP		equ 2
-
+ENEMY_MOVETYPE_FOLLOW   equ 3
 
 
 Player struct
@@ -156,6 +160,9 @@ Enemy ends
 	hStoneWallZoneBmp		dd ?
 	hDirtyWallBmp			dd ?
 	hDirtyWallZoneBmp		dd ?
+	hBedrockWallZoneBmp		dd ?
+	hTrapBmp				dd ?
+	hGoldenWallZoneBmp		dd ?
 	hSlimeOrangeBmp			dd ?
 	hBatBmp					dd ?
 	hHealthHeartBmp			dd ?
@@ -167,12 +174,42 @@ Enemy ends
 	bitmapbuffer			BITMAP <>
 	
 	; 游戏状态
-	mapMatrix				dd MAP_WIDTH * MAP_HEIGHT dup(0)
+	;mapMatrix				dd MAP_WIDTH * MAP_HEIGHT dup(0)
+	mapMatrix				dd 3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3
+dd 3 ,4 ,4 ,4 ,4 ,4 ,4 ,4 ,1 ,1 ,1 ,2 ,1 ,1 ,1 ,1 ,1 ,1 ,3 ,3 ,2 ,1 ,1 ,1 ,1 ,1 ,1 ,3
+dd 3 ,4 ,0 ,0 ,0 ,0 ,0 ,4 ,1 ,3 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,1 ,1 ,2 ,2 ,1 ,0 ,0 ,0 ,1 ,1 ,3
+dd 3 ,4 ,0 ,0 ,0 ,0 ,0 ,4 ,1 ,3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,3
+dd 3 ,4 ,0 ,0 ,0 ,0 ,0 ,4 ,1 ,3 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,0 ,0 ,2 ,2 ,0 ,1 ,3
+dd 3 ,4 ,0 ,0 ,0 ,0 ,0 ,4 ,1 ,3 ,2 ,1 ,1 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,2 ,2 ,0 ,1 ,3
+dd 3 ,4 ,0 ,0 ,0 ,0 ,0 ,4 ,1 ,3 ,3 ,1 ,0 ,0 ,0 ,1 ,1 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,0 ,1 ,3
+dd 3 ,4 ,4 ,4 ,0 ,4 ,4 ,4 ,1 ,3 ,3 ,1 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3
+dd 3 ,1 ,1 ,1 ,0 ,1 ,1 ,1 ,1 ,3 ,3 ,1 ,0 ,0 ,0 ,1 ,1 ,0 ,1 ,1 ,1 ,1 ,2 ,1 ,1 ,1 ,2 ,3
+dd 3 ,1 ,1 ,1 ,0 ,1 ,1 ,1 ,1 ,2 ,2 ,1 ,1 ,1 ,1 ,1 ,1 ,0 ,1 ,1 ,1 ,2 ,2 ,2 ,2 ,2 ,2 ,3
+dd 3 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,2 ,2 ,1 ,1 ,1 ,1 ,1 ,1 ,0 ,0 ,0 ,1 ,1 ,1 ,1 ,0 ,1 ,2 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,1 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,1 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,0 ,0 ,5 ,0 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,1 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,0 ,0 ,5 ,0 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,1 ,1 ,0 ,1 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,1 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,0 ,0 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,1 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,1 ,1 ,0 ,1 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,2 ,2 ,2 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,1 ,3
+dd 3 ,2 ,0 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,2 ,1 ,5 ,5 ,2 ,2 ,1 ,1 ,1 ,1 ,1 ,0 ,1 ,3
+dd 3 ,2 ,0 ,1 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,1 ,5 ,5 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,0 ,1 ,3
+dd 3 ,2 ,0 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,2 ,3 ,1 ,1 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,1 ,3 ,3 ,3 ,2 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3 ,3 ,3 ,2 ,1 ,0 ,5 ,0 ,1 ,0 ,0 ,2 ,0 ,1 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,6 ,0 ,0 ,1 ,3 ,3 ,3 ,2 ,1 ,0 ,0 ,0 ,1 ,1 ,0 ,1 ,0 ,1 ,3
+dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3 ,3 ,3 ,2 ,1 ,1 ,0 ,0 ,0 ,2 ,0 ,2 ,0 ,1 ,3
+dd 3 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3 ,3 ,3 ,2 ,2 ,1 ,0 ,0 ,0 ,2 ,0 ,0 ,0 ,1 ,3
+dd 3 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,3 ,3 ,3 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,3
+dd 3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3
+	
 	level					dd ?
 	player					Player <>
 	enemys					Enemy MAX_ENEMY_NUM dup(<,,0,0,0,0,0,0>)
 	;dwBaseTick				dd ? ; 上一个节拍的时间戳
 	isMiss					dd ?
+	isUpdated				dd ?
 	; 绘图状态
 	paintWindowPosX			dd ?
 	paintWindowPosY			dd ?
@@ -182,6 +219,7 @@ Enemy ends
 	beatIntervalIndex		dd ?
 
 	paintCount				dd ?
+	randMask				dd ?
 ; 常量定义
 .const
 	szClassName				db 'Window', 0
@@ -192,8 +230,14 @@ Enemy ends
 	szDirtyWallPicPath		db 'image\\Dirty_Wall.bmp', 0
 	szDirtyWallZonePicPath	db 'image\\Dirty_Wall_Zone.bmp', 0
 	szStoneWallZonePicPath	db 'image\\Stone_Wall_Zone.bmp', 0
+	szBedrockWallZonePicPath db 'image\\Bedrock_Wall_Zone.bmp',0
+	szGoldenWallZonePicPath	db 'image\\Golden_Wall_Zone.bmp',0
+	szTrapPicPath			db 'image\\Trap.bmp',0
+
 	szSlimeOrangePicPath	db 'image\\Slime_Orange.bmp', 0
 	szBatPicPath			db 'image\\Bat.bmp', 0
+
+
 	szHealthHeartPicPath	db 'image\\Health_Heart.bmp', 0
 	szHealthEmptyHeartPicPath db 'image\\Health_Empty_Heart.bmp', 0
 	szEnemyHeartPicPath		db 'image\\Enemy_Heart.bmp', 0
@@ -201,17 +245,5 @@ Enemy ends
 	szHeartSmallPicPath		db 'image\\Heart_Small.bmp', 0
 	szHeartBigPicPath		db 'image\\Heart_Big.bmp', 0
 	
-	beatIntervalsStage1	    dd  1, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 4, 5, 4, 5, 5, 6, 5, 5, 5, 5, 6
-							dd   5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 4, 5, 5, 4, 6, 5, 5, 5, 5, 6
-							dd   5, 5, 5, 6, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5
-							dd   5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5
-							dd   5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 4, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5 
-							dd   5, 4, 5, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6
-							dd   5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5
-							dd   5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5
-							dd   6, 5, 4, 5, 5, 4, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 4, 5, 4, 6, 5, 5, 5, 5, 6, 5, 5
-							dd   5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5 
-							dd   5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 4, 5, 4, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5
-							dd  5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6
-							dd  5, 5, 5, 6, 5, 5, 5, 5, 6, 5, 5
+	beatIntervalsStage1	    dd 5
 	;mapDataStage1			DWORD 
