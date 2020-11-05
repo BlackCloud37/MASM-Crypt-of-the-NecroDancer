@@ -22,10 +22,9 @@ _CreateDIBitmap			proto :HWND, :DWORD
 _PaintGameFrame			proto :HWND,:DWORD
 _PaintMap				proto :HWND, :DWORD
 _PaintPlayer			proto :HWND, :DWORD
-_PaintEnemy				proto :HWND, :DWORD
 _PaintHealthHeart		proto :HWND, :DWORD
 _PaintHeart				proto :HWND, :DWORD, :DWORD
-_PaintObjectAtPos		proto :DWORD,:DWORD,:DWORD,:DWORD,:HWND,:DWORD
+_PaintObjectAtPos		proto :DWORD,:DWORD,:DWORD,:DWORD,:HWND,:DWORD,:DWORD
 _InitResources			proto
 
 
@@ -68,8 +67,8 @@ BEAT_INTERVAL			equ 100  ; ms
 TOLERANCE_COUNT			equ 2
 
 ; map
-MAP_WIDTH				equ 28
-MAP_HEIGHT				equ 28
+MAP_WIDTH				equ 30
+MAP_HEIGHT				equ 30
 
 ; enemy
 ;MAX_ENEMY_NUM			equ 10
@@ -102,15 +101,23 @@ NONEED_SHIFT			equ 0
 WINDOW_HEIGHT			equ 492
 WINDOW_WIDTH			equ 620
 
+SHADOW_PERCENT			equ 51
+
 ; 地图类型定义
 MAP_TYPE_DIRTY_FLOOR	equ 0
-MAP_TYPE_STONE_WALL		equ 2
+
+MAP_TYPE_SOLID_START    equ 1
 MAP_TYPE_DIRTY_WALL		equ 1
+MAP_TYPE_STONE_WALL		equ 2
 MAP_TYPE_BEDROCK		equ 3
 MAP_TYPE_GOLDEN_WALL	equ 4
-MAP_TYPE_TRAP			equ 5
-MAP_TYPE_STAIRS			equ 6
+MAP_TYPE_DIRTY_WALL1	equ 5
+MAP_TYPE_DIRTY_WALL2	equ 6
+MAP_TYPE_BRICK_WALL		equ 7
+MAP_TYPE_SOLID_END		equ 8
 
+MAP_TYPE_TRAP			equ 20
+MAP_TYPE_STAIRS			equ 21
 ; enemy
 ENEMY_TYPE_BAT			equ 0
 ENEMY_TYPE_SLIME_ORANGE equ 1
@@ -156,14 +163,17 @@ Enemy ends
 .data
 	hInstance				dd ? ; 实例句柄
 	hWinMain				dd ? ; 窗口句柄
-	hWindowHDC				dd ?
+	;hWindowHDC				dd ?
 	; 资源句柄
 	hPlayerBmp				dd ?
 	hDirtyFloorBmp			dd ?
 	hStoneWallBmp			dd ?
 	hStoneWallZoneBmp		dd ?
+	hStoneWallZone1Bmp		dd ?
 	hDirtyWallBmp			dd ?
 	hDirtyWallZoneBmp		dd ?
+	hDirtyWallZone1Bmp		dd ?
+	hDirtyWallZone2Bmp		dd ?
 	hBedrockWallZoneBmp		dd ?
 	hTrapBmp				dd ?
 	hStairsBmp				dd ?
@@ -176,42 +186,49 @@ Enemy ends
 	hEnemyEmptyHeartBmp		dd ?
 	hHeartBigBmp			dd ?
 	hHeartSmallBmp			dd ?
+	hMaskBmp				dd ?
+	;_hWnd					dd ?
+	;_hDC					dd ?
 	bitmapbuffer			BITMAP <>
 	
 	; 游戏状态
-	mapMatrix				dd 3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3
-							dd 3 ,4 ,4 ,4 ,4 ,4 ,4 ,4 ,1 ,1 ,1 ,2 ,1 ,1 ,1 ,1 ,1 ,1 ,3 ,3 ,2 ,1 ,1 ,1 ,1 ,1 ,1 ,3
-							dd 3 ,4 ,0 ,0 ,0 ,0 ,0 ,4 ,1 ,3 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,1 ,1 ,2 ,2 ,1 ,0 ,0 ,0 ,1 ,1 ,3
-							dd 3 ,4 ,0 ,0 ,0 ,0 ,0 ,4 ,1 ,3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,3
-							dd 3 ,4 ,0 ,0 ,0 ,0 ,0 ,4 ,1 ,3 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,0 ,0 ,2 ,2 ,0 ,1 ,3
-							dd 3 ,4 ,0 ,0 ,0 ,0 ,0 ,4 ,1 ,3 ,2 ,1 ,1 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,2 ,2 ,0 ,1 ,3
-							dd 3 ,4 ,0 ,0 ,0 ,0 ,0 ,4 ,1 ,3 ,3 ,1 ,0 ,0 ,0 ,1 ,1 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,0 ,1 ,3
-							dd 3 ,4 ,4 ,4 ,0 ,4 ,4 ,4 ,1 ,3 ,3 ,1 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3
-							dd 3 ,1 ,1 ,1 ,0 ,1 ,1 ,1 ,1 ,3 ,3 ,1 ,0 ,0 ,0 ,1 ,1 ,0 ,1 ,1 ,1 ,1 ,2 ,1 ,1 ,1 ,2 ,3
-							dd 3 ,1 ,1 ,1 ,0 ,1 ,1 ,1 ,1 ,2 ,2 ,1 ,1 ,1 ,1 ,1 ,1 ,0 ,1 ,1 ,1 ,2 ,2 ,2 ,2 ,2 ,2 ,3
-							dd 3 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,2 ,2 ,1 ,1 ,1 ,1 ,1 ,1 ,0 ,0 ,0 ,1 ,1 ,1 ,1 ,0 ,1 ,2 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,1 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,1 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,0 ,0 ,5 ,0 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,1 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,0 ,0 ,5 ,0 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,1 ,1 ,0 ,1 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,2 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,1 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,0 ,0 ,0 ,0 ,0 ,1 ,1 ,0 ,0 ,0 ,1 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,1 ,1 ,0 ,1 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,1 ,1 ,0 ,0 ,1 ,1 ,1 ,2 ,2 ,2 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,1 ,3
-							dd 3 ,2 ,0 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,2 ,1 ,5 ,5 ,2 ,2 ,1 ,1 ,1 ,1 ,1 ,0 ,1 ,3
-							dd 3 ,2 ,0 ,1 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,1 ,5 ,5 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,0 ,1 ,3
-							dd 3 ,2 ,0 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,2 ,3 ,1 ,1 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,1 ,3 ,3 ,3 ,2 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3 ,3 ,3 ,2 ,1 ,0 ,5 ,0 ,1 ,0 ,0 ,2 ,0 ,1 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,6 ,0 ,0 ,1 ,3 ,3 ,3 ,2 ,1 ,0 ,0 ,0 ,1 ,1 ,0 ,1 ,0 ,1 ,3
-							dd 3 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3 ,3 ,3 ,2 ,1 ,1 ,0 ,0 ,0 ,2 ,0 ,2 ,0 ,1 ,3
-							dd 3 ,1 ,1 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,0 ,1 ,3 ,3 ,3 ,2 ,2 ,1 ,0 ,0 ,0 ,2 ,0 ,0 ,0 ,1 ,3
-							dd 3 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,1 ,3 ,3 ,3 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,2 ,3
-							dd 3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3 ,3
+	mapMatrix				dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,2,2,2,1,6,1,5,1,1,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,2,0,0,0,0,0,0,0,2,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,6,2,0,20,0,0,20,0,0,6,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,1,0,0,0,0,0,0,0,2,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,1,0,0,0,0,0,0,0,5,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,5,1,0,0,0,0,0,20,0,2,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,1,0,0,0,0,0,0,0,0,1,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,1,1,1,0,5,1,1,2,0,2,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,1,1,2,1,1,1,1,1,2,2,0,1,6,3,1,1,2,3,3,3,3,3,3
+							dd 3,3,3,3,3,1,1,1,2,0,0,0,0,0,0,0,0,0,1,3,3,3,3,3,3,3,3,3,3,3
+							dd 3,3,3,3,3,1,1,6,5,0,1,1,1,0,0,2,20,0,1,3,3,3,3,3,3,3,3,3,3,3
+							dd 3,4,4,4,4,4,1,5,6,0,1,0,1,0,0,1,0,0,5,3,3,3,3,3,3,3,3,3,3,3
+							dd 3,4,0,0,0,4,1,2,2,0,1,1,1,0,0,0,0,0,5,1,5,3,1,2,2,2,3,3,3,3
+							dd 3,4,0,0,0,4,5,1,0,0,0,0,0,0,0,1,2,0,0,0,1,1,6,1,2,6,1,3,3,3
+							dd 3,4,0,0,0,4,6,2,0,0,2,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,1,3,3,3
+							dd 3,4,0,0,0,4,2,1,0,0,1,0,1,2,1,0,1,1,1,1,1,0,0,0,20,0,6,3,3,3
+							dd 3,4,0,0,0,0,0,0,0,0,1,0,1,3,2,2,1,0,0,0,1,0,0,0,0,0,1,2,3,3
+							dd 3,4,4,4,4,4,2,1,0,0,0,0,1,3,3,3,1,0,0,0,1,0,0,1,2,5,5,2,3,3
+							dd 3,3,3,3,3,3,3,5,1,2,2,0,1,3,1,1,1,0,0,0,1,0,0,1,1,2,3,3,3,3
+							dd 3,3,3,3,3,3,3,1,1,0,0,0,1,3,1,5,1,1,1,1,1,0,2,2,1,2,3,3,3,3
+							dd 3,3,3,3,3,3,3,1,0,0,0,0,1,3,2,0,0,0,0,0,0,0,5,1,1,1,2,3,3,3
+							dd 3,3,3,3,3,3,3,1,6,0,0,0,1,3,6,0,0,20,0,0,0,0,7,7,7,7,7,7,3,3
+							dd 3,3,3,3,3,3,3,1,5,6,0,0,1,3,2,0,0,0,0,0,0,0,0,0,0,0,0,7,3,3
+							dd 3,3,3,3,3,3,3,1,1,1,1,1,1,3,1,1,1,2,1,1,1,5,7,0,0,21,0,7,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,7,0,0,0,0,7,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,7,7,7,7,7,7,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
 
 	level					dd ?
-	player					Player <5,5,4,4,1,ATTACK_MODE_NORMAL,STEP_NONE,0>
-	enemys					Enemy <3,3,4,4,1,STEP_NONE,ENEMY_MOVETYPE_FOLLOW,0,ENEMY_TYPE_BAT>
-	
+	player					Player <17,16,4,4,1,ATTACK_MODE_NORMAL,STEP_NONE,0>
+	enemys					Enemy <17,19,1,1,1,STEP_NONE,ENEMY_MOVETYPE_RANDOM,0,ENEMY_TYPE_BAT>, <18,19,1,1,1,STEP_NONE,ENEMY_MOVETYPE_RANDOM,0,ENEMY_TYPE_BAT>, <19,19,1,1,1,STEP_NONE,ENEMY_MOVETYPE_RANDOM,0,ENEMY_TYPE_BAT>
+							Enemy <17,18,1,1,1,STEP_NONE,ENEMY_MOVETYPE_RANDOM,0,ENEMY_TYPE_BAT>, <18,18,1,1,1,STEP_NONE,ENEMY_MOVETYPE_RANDOM,0,ENEMY_TYPE_BAT>, <19,18,1,1,1,STEP_NONE,ENEMY_MOVETYPE_RANDOM,0,ENEMY_TYPE_BAT> 
+							Enemy <17,20,1,1,1,STEP_NONE,ENEMY_MOVETYPE_RANDOM,0,ENEMY_TYPE_BAT>, <18,20,1,1,1,STEP_NONE,ENEMY_MOVETYPE_RANDOM,0,ENEMY_TYPE_BAT>, <19,20,1,1,1,STEP_NONE,ENEMY_MOVETYPE_RANDOM,0,ENEMY_TYPE_BAT> 
+	sizeEnemys				= $ - enemys
 	isMiss					dd ?
 	isUpdated				dd ?
 	; 绘图状态
@@ -224,23 +241,30 @@ Enemy ends
 
 	paintCount				dd ?
 	randMask				dd ?
+	bf					    BLENDFUNCTION <?>
 ; 常量定义
 .const
 	szClassName				db 'Window', 0
 	szBgmFilePath			db 'media\\bgm.wav', 0
+	szAttackFilePath		db 'media\\attack.wav', 0
 	szPlayerPicPath			db 'image\\Cadence.bmp', 0
+
 	szDirtyFloorPicPath		db 'image\\Dirty_Floor.bmp', 0
 	szStoneWallPicPath		db 'image\\Stone_Wall.bmp', 0
 	szDirtyWallPicPath		db 'image\\Dirty_Wall.bmp', 0
 	szDirtyWallZonePicPath	db 'image\\Dirty_Wall_Zone.bmp', 0
 	szStoneWallZonePicPath	db 'image\\Stone_Wall_Zone.bmp', 0
+
+	szStoneWallZone1PicPath db 'image\\Stone_Wall_Zone_1.bmp', 0
+	szDirtyWallZone1PicPath	db 'image\\Dirty_Wall_Zone_1.bmp', 0
+	szDirtyWallZone2PicPath	db 'image\\Dirty_Wall_Zone_2.bmp', 0
+
 	szBedrockWallZonePicPath db 'image\\Bedrock_Wall_Zone.bmp',0
 	szGoldenWallZonePicPath	db 'image\\Golden_Wall_Zone.bmp',0
 	szTrapPicPath			db 'image\\Trap.bmp',0
 	szStairsPicPath			db 'image\\Stairs.bmp',0
 	szSlimeOrangePicPath	db 'image\\Slime_Orange.bmp', 0
 	szBatPicPath			db 'image\\Bat.bmp', 0
-
 
 	szHealthHeartPicPath	db 'image\\Health_Heart.bmp', 0
 	szHealthEmptyHeartPicPath db 'image\\Health_Empty_Heart.bmp', 0
@@ -249,4 +273,6 @@ Enemy ends
 	szHeartSmallPicPath		db 'image\\Heart_Small.bmp', 0
 	szHeartBigPicPath		db 'image\\Heart_Big.bmp', 0
 	
+	szMaskPicPath			db 'image\\Mask.bmp',0
+
 	beatIntervalsStage1	    dd 5
