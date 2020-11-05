@@ -6,21 +6,26 @@ include function.inc
 
 .code
 rand proc uses ebx lower, upper
-	local @mask
+	local @r
 	mov eax, randMask
-	mov @mask, eax
+	mov ecx, 1103515245
+	mul ecx
+	add eax, 12345
+	mov randMask, eax
+	mov ecx, eax
+	shl eax, 16
+	shr ecx, 16
+	or eax, ecx
+	and eax, 65535
+	mov @r, eax
+
 	mov eax, upper
 	mov cx, ax
 	mov eax, lower
 	mov dx, ax
 	sub cx, dx
-	push ecx
-	invoke GetTickCount
-	xor eax, @mask
-	mov randMask, eax
-	pop ecx
 	
-	shr eax, 1
+	mov eax, @r
 
 	xor dx, dx
 	div cx       ; here dx contains the remainder of the division - from 0 to 9
@@ -75,7 +80,8 @@ _InitResources proc
 	mov hHeartSmallBmp, eax
 	invoke LoadImage, hInstance, addr szMaskPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
 	mov hMaskBmp, eax
-
+	invoke GetTickCount
+	mov randMask, eax
 	;invoke GetDC, _hWnd
 	;invoke CreateCompatibleDC, eax
 	;mov _hDC, eax
@@ -120,6 +126,7 @@ _DestroyResources endp
 
 
 startGame proc _level
+	
 	mov paintCount, 0
 	mov beatIntervalIndex, 0
 	mov eax, beatIntervalIndex
@@ -127,6 +134,8 @@ startGame proc _level
 	mov currentBeatInterval, eax
 	add beatIntervalIndex, type DWORD
 	mov currentBeatCount, 0
+
+	invoke SetTimer, _hWnd,ID_TIMER_BEAT,BEAT_INTERVAL,NULL
 	invoke PlaySound, offset szBgmFilePath, NULL, SND_ASYNC or SND_FILENAME or SND_LOOP
 	; Others
 	invoke updateStatus
@@ -320,6 +329,7 @@ updatePlayer proc
 updatePlayer endp
 
 decideNextStep proc moveType, posX, posY, tickCnt
+	local @try
 	mov eax, STEP_NONE
 	.if moveType == ENEMY_MOVETYPE_STOP
 		
@@ -344,7 +354,52 @@ decideNextStep proc moveType, posX, posY, tickCnt
 		.endif
 	.elseif moveType == ENEMY_MOVETYPE_RANDOM
 		.if tickCnt == 0
-			invoke rand, 1, 5
+			mov @try, 0
+			.while(@try < 10)
+				invoke rand, 1, 5
+				.if (eax == STEP_UP)
+					mov eax, posX
+					mov ecx, posY
+					dec ecx
+					invoke checkCollision, eax, ecx
+					.if eax == 0 || eax == 3
+						mov ecx, 1
+						mov eax, STEP_UP
+						ret
+					.endif
+				.elseif (eax == STEP_DOWN)
+					mov eax, posX
+					mov ecx, posY
+					inc ecx
+					invoke checkCollision, eax, ecx
+					.if eax == 0 || eax == 3
+						mov ecx, 1
+						mov eax, STEP_DOWN
+						ret
+					.endif
+				.elseif (eax == STEP_LEFT)
+					mov eax, posX
+					mov ecx, posY
+					dec eax
+					invoke checkCollision, eax, ecx
+					.if eax == 0 || eax == 3
+						mov ecx, 1
+						mov eax, STEP_LEFT
+						ret
+					.endif
+				.elseif (eax == STEP_RIGHT)
+					mov eax, posX
+					mov ecx, posY
+					inc eax
+					invoke checkCollision, eax, ecx
+					.if eax == 0 || eax == 3
+						mov ecx, 1
+						mov eax, STEP_RIGHT
+						ret
+					.endif
+				.endif
+				inc @try
+			.endw
 			mov ecx, 1
 		.else
 			mov ecx, 0
@@ -984,7 +1039,8 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 			invoke EndPaint,hWnd,addr @stPS
 		
 		.elseif	eax ==	WM_CREATE
-			invoke SetTimer, hWnd,ID_TIMER_BEAT,BEAT_INTERVAL,NULL
+			mov eax, hWnd
+			mov _hWnd, eax
 			invoke _InitResources
 			invoke startGame, FIRST_LEVEL
 ;********************************************************************

@@ -187,7 +187,7 @@ Enemy ends
 	hHeartBigBmp			dd ?
 	hHeartSmallBmp			dd ?
 	hMaskBmp				dd ?
-	;_hWnd					dd ?
+	_hWnd					dd ?
 	;_hDC					dd ?
 	bitmapbuffer			BITMAP <>
 	
