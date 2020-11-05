@@ -107,7 +107,7 @@ MAP_TYPE_DIRTY_FLOOR	equ 0
 MAP_TYPE_STONE_WALL		equ 2
 MAP_TYPE_DIRTY_WALL		equ 1
 MAP_TYPE_BEDROCK		equ 3
-MAP_TYPE_GOLDEN_WALL		equ 4
+MAP_TYPE_GOLDEN_WALL	equ 4
 MAP_TYPE_TRAP			equ 5
 MAP_TYPE_STAIRS			equ 6
 
@@ -250,4 +250,3 @@ Enemy ends
 	szHeartBigPicPath		db 'image\\Heart_Big.bmp', 0
 	
 	beatIntervalsStage1	    dd 5
-	;mapDataStage1			DWORD 

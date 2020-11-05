@@ -612,7 +612,7 @@ _PaintEnemyAtPos proc posX, posY, hWnd, hDC
 			invoke SelectObject, @hDCmem, hEnemyHeartBmp
 			xor ecx, ecx
 			.while (ecx < @health)
-				sub @posX, E_HEART_SIZE
+				sub @posX, E_HEART_SIZE+1
 				RGB 255, 255, 255
 				push ecx
 				invoke TransparentBlt, hDC, @posX, @posY, E_HEART_SIZE, E_HEART_SIZE, @hDCmem, 0, 0, E_HEART_SIZE, E_HEART_SIZE, eax
@@ -623,7 +623,7 @@ _PaintEnemyAtPos proc posX, posY, hWnd, hDC
 			invoke SelectObject, @hDCmem, hEnemyEmptyHeartBmp
 			pop ecx
 			.while (ecx < @maxHealth)	
-				sub @posX, E_HEART_SIZE
+				sub @posX, E_HEART_SIZE+1
 				RGB 255, 255, 255
 				push ecx
 				invoke TransparentBlt, hDC, @posX, @posY, E_HEART_SIZE, E_HEART_SIZE, @hDCmem, 0, 0, E_HEART_SIZE, E_HEART_SIZE, eax
