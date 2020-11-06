@@ -33,8 +33,6 @@ _WinMain proc
 			100, 100, WINDOW_WIDTH, WINDOW_HEIGHT,\
 			NULL,NULL,hInstance,NULL
 		mov	hWinMain,eax
-		invoke GetDC, eax
-		mov hWindowHDC, eax
 		invoke	ShowWindow, hWinMain, SW_SHOWNORMAL
 		invoke	UpdateWindow, hWinMain
 ;********************************************************************

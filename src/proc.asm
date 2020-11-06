@@ -36,6 +36,12 @@ rand proc uses ebx lower, upper
 rand endp
 
 _InitResources proc
+	invoke LoadImage, hInstance, addr szStartMenuPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hStartMenuBmp, eax
+	invoke LoadImage, hInstance, addr szEndMenuPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hEndMenuBmp, eax
+	invoke LoadImage, hInstance, addr szWinMenuPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hWinMenuBmp, eax
 	invoke LoadImage, hInstance, addr szPlayerPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
 	mov hPlayerBmp, eax
 	invoke LoadImage, hInstance, addr szDirtyFloorPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
@@ -62,10 +68,14 @@ _InitResources proc
 	mov hTrapBmp, eax
 	invoke LoadImage, hInstance, addr szStairsPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
 	mov hStairsBmp, eax
+	invoke LoadImage, hInstance, addr szSlimeBluePicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
+	mov hSlimeBlueBmp, eax
 	invoke LoadImage, hInstance, addr szSlimeOrangePicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
 	mov hSlimeOrangeBmp, eax
 	invoke LoadImage, hInstance, addr szBatPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
 	mov hBatBmp, eax
+	invoke LoadImage, hInstance, addr szSkeletonPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
+	mov hSkeletonBmp, eax
 	invoke LoadImage, hInstance, addr szHealthHeartPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
 	mov hHealthHeartBmp, eax
 	invoke LoadImage, hInstance, addr szEnemyHeartPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
@@ -82,9 +92,6 @@ _InitResources proc
 	mov hMaskBmp, eax
 	invoke GetTickCount
 	mov randMask, eax
-	;invoke GetDC, _hWnd
-	;invoke CreateCompatibleDC, eax
-	;mov _hDC, eax
 	ret
 _InitResources endp
 
@@ -94,6 +101,9 @@ _InitResources endp
 
 
 _DestroyResources proc
+	invoke DeleteObject, hStartMenuBmp
+	invoke DeleteObject, hWinMenuBmp
+	invoke DeleteObject, hEndMenuBmp
 	invoke DeleteObject, hPlayerBmp
 	invoke DeleteObject, hDirtyFloorBmp
 	invoke DeleteObject, hStoneWallBmp
@@ -108,6 +118,7 @@ _DestroyResources proc
 	invoke DeleteObject, hTrapBmp
 	invoke DeleteObject, hStairsBmp
 	invoke DeleteObject, hSlimeOrangeBmp
+	invoke DeleteObject, hSlimeBlueBmp
 	invoke DeleteObject, hBatBmp
 	invoke DeleteObject, hHeartBigBmp
 	invoke DeleteObject, hHeartSmallBmp
@@ -125,8 +136,31 @@ _DestroyResources endp
 
 
 
-startGame proc _level
-	
+startGame proc uses edi
+	mov ecx, 0
+	mov edi, offset mapMatrix
+	.while (ecx < sizeMap)
+		mov eax, [_C_mapMatrix + ecx]
+		mov [edi + ecx], eax
+		add ecx, type dword
+	.endw
+	mov ecx, 0
+	mov edi, offset player
+	.while (ecx < sizeof _C_player)
+		mov eax, dword ptr [_C_player + ecx]
+		mov [edi + ecx], eax
+		add ecx, type dword
+	.endw
+	mov ecx, 0
+	mov edi, offset enemys
+	.while (ecx < sizeEnemys)
+		mov eax, dword ptr [_C_enemys + ecx]
+		mov [edi + ecx], eax
+		add ecx, type dword
+	.endw
+
+
+	mov gameStatus, STATUS_PLAYING
 	mov paintCount, 0
 	mov beatIntervalIndex, 0
 	mov eax, beatIntervalIndex
@@ -134,16 +168,26 @@ startGame proc _level
 	mov currentBeatInterval, eax
 	add beatIntervalIndex, type DWORD
 	mov currentBeatCount, 0
-
 	invoke SetTimer, _hWnd,ID_TIMER_BEAT,BEAT_INTERVAL,NULL
 	invoke PlaySound, offset szBgmFilePath, NULL, SND_ASYNC or SND_FILENAME or SND_LOOP
-	; Others
 	invoke updateStatus
 	ret
 startGame endp
 
 
+winGame proc
+	mov gameStatus, STATUS_WIN
+	invoke KillTimer,_hWnd,ID_TIMER_BEAT
+	invoke InvalidateRect,_hWnd,NULL,FALSE
+	ret
+winGame endp
 
+endGame proc
+	mov gameStatus, STATUS_END_MENU
+	invoke KillTimer,_hWnd,ID_TIMER_BEAT
+	invoke InvalidateRect,_hWnd,NULL,FALSE
+	ret
+endGame endp
 
 
 
@@ -202,7 +246,6 @@ checkCollision proc posX, posY
 		ret
 	.endif
 	
-	; TODO: check enemy's collision
 	mov eax, player.posX
 	mov ecx, player.posY
 	.if (eax == posX) && (ecx == posY)
@@ -210,7 +253,6 @@ checkCollision proc posX, posY
 		ret
 	.endif
 	
-	; TODO: attack range
 	invoke getEnemyAtPos, posX, posY
 	.if eax != 0
 		mov eax, 2
@@ -266,7 +308,7 @@ updatePlayer proc
 	.if (eax == MAP_TYPE_TRAP)
 		mov player.health, 0
 	.elseif (eax == MAP_TYPE_STAIRS)
-		; TODO:WIN
+		invoke winGame
 	.endif
 	.if (player.nextStep == STEP_NONE)
 		ret
@@ -440,19 +482,47 @@ decideNextStep proc moveType, posX, posY, tickCnt
 		.else
 			mov ecx, 0
 		.endif
+	.elseif moveType == ENEMY_MOVETYPE_BS ; blue slime
+		.if tickCnt == 0
+			mov eax, STEP_UP
+			mov ecx, tickCnt
+			inc ecx
+		.elseif tickCnt == 1
+			mov eax, STEP_NONE
+			mov ecx, tickCnt
+			inc ecx
+		.elseif tickCnt == 2
+			mov eax, STEP_DOWN
+			mov ecx, tickCnt
+			inc ecx
+		.elseif tickCnt == 3
+			mov eax, STEP_NONE
+			mov ecx, 0
+		.else
+			mov ecx, 0
+		.endif
 	.endif
 	ret
 decideNextStep endp
 
 
 updateEnemy proc uses edi
-	local @nextPosX, @nextPosY, @collisionType, @cnt, @prevTickCnt
+	local @nextPosX, @nextPosY, @collisionType, @cnt, @prevTickCnt, @rangeX, @rangeY
 	mov edi, offset enemys
 	mov @cnt, 0
 
 	.while(@cnt < sizeEnemys)
+		mov eax, paintWindowPosX
+		add eax, PAINT_WINDOW_WIDTH
+		mov @rangeX, eax
+		mov eax, paintWindowPosY
+		add eax, PAINT_WINDOW_HEIGHT
+		mov @rangeY, eax
 		mov eax, (Enemy ptr [edi]).posX
 		mov ecx, (Enemy ptr [edi]).posY
+		.if eax < paintWindowPosX || eax >= @rangeX || ecx < paintWindowPosY || ecx >= @rangeY
+			jmp continue
+		.endif
 		invoke getMapTypeAtPos, eax, ecx
 		.if (eax == MAP_TYPE_TRAP)
 			mov (Enemy ptr [edi]).health, 0
@@ -542,7 +612,7 @@ updateStatus proc
 	invoke updatePlayer
 	invoke updateEnemy
 	.if player.health == 0
-		invoke PostMessage, hWinMain, WM_QUIT, NULL, NULL
+		invoke endGame
 	.endif
 
 	; Update paint window
@@ -611,7 +681,9 @@ getPicOfEnemyType proc enemyType
 	.elseif enemyType == ENEMY_TYPE_SLIME_ORANGE
 		mov eax, hSlimeOrangeBmp
 	.elseif enemyType == ENEMY_TYPE_SLIME_BLUE
+		mov eax, hSlimeBlueBmp
 	.elseif enemyType == ENEMY_TYPE_SKELETON
+		mov eax, hSkeletonBmp
 	.endif
 	ret
 getPicOfEnemyType endp
@@ -619,6 +691,42 @@ getPicOfEnemyType endp
 
 
 
+
+
+
+
+
+
+
+_PaintStartMenu	proc hWnd, hDC
+	local @hDCmem
+	invoke CreateCompatibleDC, hDC
+	mov @hDCmem, eax
+	invoke SelectObject, @hDCmem, hStartMenuBmp
+	invoke StretchBlt, hDC, 0, 0, PAINT_WINDOW_WIDTH*GRID_SIZE, PAINT_WINDOW_HEIGHT*GRID_SIZE, @hDCmem, 0, 0, 800, 450, SRCCOPY
+	invoke DeleteDC, @hDCmem
+	ret
+_PaintStartMenu	endp
+
+_PaintWinMenu	proc hWnd, hDC
+	local @hDCmem
+	invoke CreateCompatibleDC, hDC
+	mov @hDCmem, eax
+	invoke SelectObject, @hDCmem, hWinMenuBmp
+	invoke StretchBlt, hDC, 0, 0, PAINT_WINDOW_WIDTH*GRID_SIZE, PAINT_WINDOW_HEIGHT*GRID_SIZE, @hDCmem, 0, 0, 800, 450, SRCCOPY
+	invoke DeleteDC, @hDCmem
+	ret
+_PaintWinMenu	endp
+
+_PaintEndMenu	proc hWnd, hDC
+	local @hDCmem
+	invoke CreateCompatibleDC, hDC
+	mov @hDCmem, eax
+	invoke SelectObject, @hDCmem, hEndMenuBmp
+	invoke StretchBlt, hDC, 0, 0, PAINT_WINDOW_WIDTH*GRID_SIZE, PAINT_WINDOW_HEIGHT*GRID_SIZE, @hDCmem, 0, 0, 800, 450, SRCCOPY
+	invoke DeleteDC, @hDCmem
+	ret
+_PaintEndMenu	endp
 
 
 _PaintGameFrame	proc hWnd, hDC
@@ -632,7 +740,6 @@ _PaintGameFrame	proc hWnd, hDC
 	.else 
 		invoke _PaintHeart, hWnd, hDC, 0
 	.endif
-
 	popad
 	ret
 _PaintGameFrame endp
@@ -972,54 +1079,66 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 
 		mov	eax, uMsg
 		.if eax == WM_KEYDOWN
-			; >= next_beat - tolerance or < tolerance
-			mov eax, currentBeatInterval
-			sub eax, TOLERANCE_COUNT
-			;.if (isMiss == FALSE) && ((currentBeatCount >= eax) || (currentBeatCount <= TOLERANCE_COUNT))
-			.if TRUE
-				mov eax, wParam
-				.if eax == 37 ; left
-					mov player.nextStep, STEP_LEFT
-				.elseif eax == 38 ; up
-					mov player.nextStep, STEP_UP
-				.elseif eax == 39 ; right
-					mov player.nextStep, STEP_RIGHT
-				.elseif eax == 40 ; down
-					mov player.nextStep, STEP_DOWN
-				.endif
-				mov isUpdated, TRUE
-				mov isMiss, TRUE
-				inc paintCount
-				invoke updateStatus
-				invoke InvalidateRect,hWnd,NULL,FALSE
-			.else
-				; miss
-				.if isMiss == FALSE
+			.if gameStatus == STATUS_PLAYING
+				; >= next_beat - tolerance or < tolerance
+				mov eax, currentBeatInterval
+				sub eax, TOLERANCE_COUNT
+				;.if (isMiss == FALSE) && ((currentBeatCount >= eax) || (currentBeatCount <= TOLERANCE_COUNT))
+				.if TRUE
+					mov eax, wParam
+					.if eax == VK_LEFT ; left
+						mov player.nextStep, STEP_LEFT
+					.elseif eax == VK_UP ; up
+						mov player.nextStep, STEP_UP
+					.elseif eax == VK_RIGHT ; right
+						mov player.nextStep, STEP_RIGHT
+					.elseif eax == VK_DOWN ; down
+						mov player.nextStep, STEP_DOWN
+					.endif
+					mov isUpdated, TRUE
 					mov isMiss, TRUE
-					invoke MessageBeep, -1
-				.endif
-			.endif
-
-		.elseif	eax == WM_TIMER
-			inc currentBeatCount
-			mov eax, currentBeatInterval
-			.if eax == currentBeatCount ; on the beat
-				mov currentBeatCount, 0
-				; get next interval
-				.if beatIntervalIndex == sizeof beatIntervalsStage1
-					mov beatIntervalIndex, 0
-				.endif
-				mov eax, beatIntervalIndex
-				mov eax, [beatIntervalsStage1 + eax]
-				mov currentBeatInterval, eax
-				add beatIntervalIndex, type DWORD
-			;.elseif currentBeatCount == TOLERANCE_COUNT
-				.if isUpdated == FALSE
 					inc paintCount
 					invoke updateStatus
+					invoke InvalidateRect,hWnd,NULL,FALSE
+				.else
+					; miss
+					.if isMiss == FALSE
+						mov isMiss, TRUE
+						invoke MessageBeep, -1
+					.endif
 				.endif
-				mov isUpdated, FALSE
-				mov isMiss, FALSE
+			.elseif gameStatus == STATUS_START_MENU
+				.if wParam == VK_ESCAPE
+					invoke PostMessage, hWinMain, WM_QUIT, NULL, NULL
+				.endif
+				invoke startGame
+			.elseif gameStatus == STATUS_WIN || gameStatus == STATUS_END_MENU
+				; press any key to start menu
+				mov gameStatus, STATUS_START_MENU
+				invoke InvalidateRect,hWnd,NULL,FALSE
+			.endif
+		.elseif	eax == WM_TIMER
+			.if gameStatus == STATUS_PLAYING
+				inc currentBeatCount
+				mov eax, currentBeatInterval
+				.if eax == currentBeatCount ; on the beat
+					mov currentBeatCount, 0
+					; get next interval
+					.if beatIntervalIndex == sizeof beatIntervalsStage1
+						mov beatIntervalIndex, 0
+					.endif
+					mov eax, beatIntervalIndex
+					mov eax, [beatIntervalsStage1 + eax]
+					mov currentBeatInterval, eax
+					add beatIntervalIndex, type DWORD
+				;.elseif currentBeatCount == TOLERANCE_COUNT
+					.if isUpdated == FALSE
+						inc paintCount
+						invoke updateStatus
+					.endif
+					mov isUpdated, FALSE
+					mov isMiss, FALSE
+				.endif
 			.endif
 			invoke InvalidateRect,hWnd,NULL,FALSE
 ;********************************************************************
@@ -1027,26 +1146,33 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 			invoke BeginPaint,hWnd,addr @stPS
 			mov @hDC, eax
 
-			;invoke CreateCompatibleDC, @hDC
-			;mov @_hDC, eax
 
-			;invoke SelectObject, @_hDC, hBatBmp
-			invoke _PaintGameFrame, hWnd, @hDC
+			.if gameStatus == STATUS_START_MENU
+				invoke _PaintStartMenu, hWnd, @hDC
+			.elseif gameStatus == STATUS_END_MENU
+				invoke _PaintEndMenu, hWnd, @hDC
+			.elseif gameStatus == STATUS_WIN
+				invoke _PaintWinMenu, hWnd, @hDC
+			.elseif gameStatus == STATUS_PLAYING
+				;invoke CreateCompatibleDC, @hDC
+				;mov @_hDC, eax
+				;invoke SelectObject, @_hDC, hBatBmp
+				invoke _PaintGameFrame, hWnd, @hDC
+				;invoke BitBlt, @hDC, 0, 0, 50, 50, @_hDC, 0, 0, SRCCOPY
+				;invoke DeleteDC, @_hDC
+			.endif
 			
-			;invoke BitBlt, @hDC, 0, 0, 50, 50, @_hDC, 0, 0, SRCCOPY
-			
-			;invoke DeleteDC, @_hDC
 			invoke EndPaint,hWnd,addr @stPS
 		
 		.elseif	eax ==	WM_CREATE
 			mov eax, hWnd
 			mov _hWnd, eax
 			invoke _InitResources
-			invoke startGame, FIRST_LEVEL
+			mov gameStatus, STATUS_START_MENU
+			
 ;********************************************************************
 		
 		.elseif	eax ==	WM_CLOSE
-			invoke KillTimer,hWnd,ID_TIMER_BEAT
 			invoke DestroyWindow,hWinMain
 			invoke PostQuitMessage,NULL
 			invoke _DestroyResources
