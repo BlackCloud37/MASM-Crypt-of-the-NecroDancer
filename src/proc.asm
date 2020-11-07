@@ -42,6 +42,9 @@ _InitResources proc
 	mov hEndMenuBmp, eax
 	invoke LoadImage, hInstance, addr szWinMenuPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
 	mov hWinMenuBmp, eax
+	invoke LoadImage, hInstance, addr szRedMaskPicPath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE
+	mov hRedMaskBmp, eax
+	
 	invoke LoadImage, hInstance, addr szPlayerPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
 	mov hPlayerBmp, eax
 	invoke LoadImage, hInstance, addr szDirtyFloorPicPath, IMAGE_BITMAP, GRID_SIZE, GRID_SIZE, LR_LOADFROMFILE
@@ -104,6 +107,7 @@ _DestroyResources proc
 	invoke DeleteObject, hStartMenuBmp
 	invoke DeleteObject, hWinMenuBmp
 	invoke DeleteObject, hEndMenuBmp
+	invoke DeleteObject, hRedMaskBmp
 	invoke DeleteObject, hPlayerBmp
 	invoke DeleteObject, hDirtyFloorBmp
 	invoke DeleteObject, hStoneWallBmp
@@ -127,7 +131,6 @@ _DestroyResources proc
 	invoke DeleteObject, hEnemyEmptyHeartBmp
 	invoke DeleteObject, hEnemyHeartBmp
 	invoke DeleteObject, hMaskBmp
-	;invoke DeleteDC, _hDC
 	ret
 _DestroyResources endp
 
@@ -452,30 +455,70 @@ decideNextStep proc moveType, posX, posY, tickCnt
 			.if eax == 0
 				mov eax, player.posX
 				.if eax < posX
-					mov eax, STEP_LEFT
+					mov eax, posX
+					mov ecx, posY
+					dec eax
+					invoke checkCollision, eax, ecx
+					.if eax == 0 || eax == 3
+						mov ecx, 1
+						mov eax, STEP_LEFT
+						ret
+					.else
+						jmp up_down
+					.endif
 				.elseif eax > posX
-					mov eax, STEP_RIGHT
-				.else
-					mov eax, player.posY
-					.if eax < posY
-						mov eax, STEP_UP
-					.elseif eax > posY
-						mov eax, STEP_DOWN
+					mov eax, posX
+					mov ecx, posY
+					inc eax
+					invoke checkCollision, eax, ecx
+					.if eax == 0 || eax == 3
+						mov ecx, 1
+						mov eax, STEP_RIGHT
+						ret
+					.else
+						jmp up_down
 					.endif
 				.endif
-			.elseif eax == 1
-				mov eax, player.posY
+				up_down:
+				mov eax, player.posY				
 				.if eax < posY
 					mov eax, STEP_UP
 				.elseif eax > posY
 					mov eax, STEP_DOWN
-				.else
-					mov eax, player.posX
-					.if eax < posX
-						mov eax, STEP_LEFT
-					.elseif eax > posX
-						mov eax, STEP_RIGHT
+				.endif
+			.elseif eax == 1
+				mov eax, player.posY
+				.if eax < posY
+					mov eax, posX
+					mov ecx, posY
+					dec ecx
+					invoke checkCollision, eax, ecx
+					.if eax == 0 || eax == 3
+						mov ecx, 1
+						mov eax, STEP_UP
+						ret
+					.else
+						jmp left_right
 					.endif
+				.elseif eax > posY
+					mov eax, posX
+					mov ecx, posY
+					inc ecx
+					invoke checkCollision, eax, ecx
+					.if eax == 0 || eax == 3
+						mov ecx, 1
+						mov eax, STEP_DOWN
+						ret
+					.else
+						jmp left_right
+					.endif
+				.endif
+				left_right:
+				mov eax, player.posX
+				.if eax < posX
+					mov eax, STEP_LEFT
+				.elseif eax > posX
+					mov eax, STEP_RIGHT
 				.endif
 			.endif
 			mov ecx, 1
@@ -507,7 +550,7 @@ decideNextStep endp
 
 
 updateEnemy proc uses edi
-	local @nextPosX, @nextPosY, @collisionType, @cnt, @prevTickCnt, @rangeX, @rangeY
+	local @nextPosX, @nextPosY, @collisionType, @cnt, @prevTickCnt, @rangeX, @rangeY, @hDCmem,@hDC, @stPS
 	mov edi, offset enemys
 	mov @cnt, 0
 
@@ -573,6 +616,9 @@ updateEnemy proc uses edi
 			.elseif @collisionType == 2 ; enemy
 				;jmp continue
 			.elseif @collisionType == 3 ; player
+				; paint RED
+				invoke InvalidateRect,_hWnd,NULL,FALSE
+				mov attacked, TRUE
 				; attack the player
 				mov eax, player.health
 				mov edx, (Enemy ptr [edi]).attack
@@ -1074,7 +1120,7 @@ _PaintObjectAtPos endp
 
 _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 		local @stPS:PAINTSTRUCT
-		local @hDC, @_hDC
+		local @hDC, @_hDC, @hBmp
 		local @stPos:POINT
 
 		mov	eax, uMsg
@@ -1083,29 +1129,35 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 				; >= next_beat - tolerance or < tolerance
 				mov eax, currentBeatInterval
 				sub eax, TOLERANCE_COUNT
-				;.if (isMiss == FALSE) && ((currentBeatCount >= eax) || (currentBeatCount <= TOLERANCE_COUNT))
+				;.if ((currentBeatCount >= eax) || (currentBeatCount <= 1))
 				.if TRUE
-					mov eax, wParam
-					.if eax == VK_LEFT ; left
-						mov player.nextStep, STEP_LEFT
-					.elseif eax == VK_UP ; up
-						mov player.nextStep, STEP_UP
-					.elseif eax == VK_RIGHT ; right
-						mov player.nextStep, STEP_RIGHT
-					.elseif eax == VK_DOWN ; down
-						mov player.nextStep, STEP_DOWN
+					.if (isUpdated == FALSE)
+						mov eax, wParam
+						.if eax == VK_LEFT ; left
+							mov player.nextStep, STEP_LEFT
+						.elseif eax == VK_UP ; up
+							mov player.nextStep, STEP_UP
+						.elseif eax == VK_RIGHT ; right
+							mov player.nextStep, STEP_RIGHT
+						.elseif eax == VK_DOWN ; down
+							mov player.nextStep, STEP_DOWN
+						.endif
+						mov isUpdated, TRUE
+						mov isMiss, TRUE
+						inc paintCount
+						invoke updateStatus
+						invoke InvalidateRect,hWnd,NULL,FALSE
 					.endif
-					mov isUpdated, TRUE
-					mov isMiss, TRUE
-					inc paintCount
-					invoke updateStatus
-					invoke InvalidateRect,hWnd,NULL,FALSE
 				.else
 					; miss
-					.if isMiss == FALSE
-						mov isMiss, TRUE
-						invoke MessageBeep, -1
+					.if isUpdated == FALSE
+						inc paintCount
+						invoke updateStatus
 					.endif
+					invoke MessageBeep, -1
+					mov isUpdated, TRUE
+					mov isMiss, TRUE
+					invoke InvalidateRect,hWnd,NULL,FALSE
 				.endif
 			.elseif gameStatus == STATUS_START_MENU
 				.if wParam == VK_ESCAPE
@@ -1113,7 +1165,6 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 				.endif
 				invoke startGame
 			.elseif gameStatus == STATUS_WIN || gameStatus == STATUS_END_MENU
-				; press any key to start menu
 				mov gameStatus, STATUS_START_MENU
 				invoke InvalidateRect,hWnd,NULL,FALSE
 			.endif
@@ -1131,7 +1182,7 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 					mov eax, [beatIntervalsStage1 + eax]
 					mov currentBeatInterval, eax
 					add beatIntervalIndex, type DWORD
-				;.elseif currentBeatCount == TOLERANCE_COUNT
+				.elseif currentBeatCount == 1
 					.if isUpdated == FALSE
 						inc paintCount
 						invoke updateStatus
@@ -1145,8 +1196,6 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 		.elseif	eax ==	WM_PAINT
 			invoke BeginPaint,hWnd,addr @stPS
 			mov @hDC, eax
-
-
 			.if gameStatus == STATUS_START_MENU
 				invoke _PaintStartMenu, hWnd, @hDC
 			.elseif gameStatus == STATUS_END_MENU
@@ -1154,12 +1203,31 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 			.elseif gameStatus == STATUS_WIN
 				invoke _PaintWinMenu, hWnd, @hDC
 			.elseif gameStatus == STATUS_PLAYING
-				;invoke CreateCompatibleDC, @hDC
-				;mov @_hDC, eax
-				;invoke SelectObject, @_hDC, hBatBmp
-				invoke _PaintGameFrame, hWnd, @hDC
-				;invoke BitBlt, @hDC, 0, 0, 50, 50, @_hDC, 0, 0, SRCCOPY
-				;invoke DeleteDC, @_hDC
+				.if attacked == TRUE
+					mov attacked, FALSE
+					invoke CreateCompatibleDC, @hDC
+					mov @_hDC, eax
+					invoke SelectObject, @_hDC, hRedMaskBmp
+					mov eax, 127
+					mov bf.SourceConstantAlpha, al
+					mov bf.BlendOp, AC_SRC_OVER
+					mov bf.AlphaFormat, 0
+					mov bf.BlendFlags, 0
+					mov edx, bf
+					invoke AlphaBlend, @hDC, 0, 0, PAINT_WINDOW_WIDTH*GRID_SIZE, PAINT_WINDOW_HEIGHT*GRID_SIZE, @_hDC, 0, 0, PAINT_WINDOW_WIDTH*GRID_SIZE, PAINT_WINDOW_HEIGHT*GRID_SIZE, edx
+					invoke DeleteDC, @_hDC
+				.else
+					invoke CreateCompatibleDC, @hDC
+					mov @_hDC, eax
+					invoke CreateCompatibleBitmap, @hDC, PAINT_WINDOW_WIDTH*GRID_SIZE, PAINT_WINDOW_HEIGHT*GRID_SIZE
+					mov @hBmp, eax
+					invoke SelectObject, @_hDC, @hBmp
+					invoke _PaintGameFrame, hWnd, @_hDC
+				
+					invoke BitBlt, @hDC, 0, 0, PAINT_WINDOW_WIDTH*GRID_SIZE, PAINT_WINDOW_HEIGHT*GRID_SIZE, @_hDC, 0, 0, SRCCOPY
+					invoke DeleteDC, @_hDC
+					invoke DeleteObject, @hBmp
+				.endif
 			.endif
 			
 			invoke EndPaint,hWnd,addr @stPS

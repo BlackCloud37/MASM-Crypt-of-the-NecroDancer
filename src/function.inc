@@ -170,6 +170,7 @@ Enemy ends
 	hStartMenuBmp			dd ?
 	hEndMenuBmp				dd ?
 	hWinMenuBmp				dd ?
+	hRedMaskBmp				dd ?
 
 	hPlayerBmp				dd ?
 	hDirtyFloorBmp			dd ?
@@ -218,6 +219,7 @@ Enemy ends
 
 	paintCount				dd ?
 	randMask				dd ?
+	attacked				dd ?
 	bf					    BLENDFUNCTION <?>
 ; 常量定义
 .const
@@ -228,6 +230,8 @@ Enemy ends
 	szStartMenuPicPath		db 'image\\Start_Menu.bmp',0
 	szEndMenuPicPath		db 'image\\End_Menu.bmp',0
 	szWinMenuPicPath		db 'image\\Win_Menu.bmp',0
+	szRedMaskPicPath		db 'image\\Red.bmp',0
+
 	szPlayerPicPath			db 'image\\Cadence.bmp', 0
 	szDirtyFloorPicPath		db 'image\\Dirty_Floor.bmp', 0
 	szStoneWallPicPath		db 'image\\Stone_Wall.bmp', 0
@@ -256,30 +260,30 @@ Enemy ends
 	
 	szMaskPicPath			db 'image\\Mask.bmp',0
 
-	beatIntervalsStage1	    dd 5
+	beatIntervalsStage1		dd 5
 
 	_C_mapMatrix			dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
 							dd 3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
 							dd 3,3,2,1,5,1,5,2,1,6,1,1,1,2,2,2,3,3,1,6,1,5,1,1,3,3,3,3,3,3
-							dd 3,3,6,1,0,0,0,1,2,6,0,1,1,2,2,1,1,1,1,0,0,0,0,2,3,3,3,3,3,3
-							dd 3,3,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,0,0,20,0,0,6,3,3,3,3,3,3
-							dd 3,3,6,0,0,0,0,0,0,5,1,2,2,1,2,1,0,0,0,0,0,0,0,1,1,3,3,3,3,3
+							dd 3,3,6,1,0,0,0,1,2,6,0,1,2,2,2,1,1,1,1,0,0,0,0,2,3,3,3,3,3,3
+							dd 3,3,1,0,0,0,0,0,0,0,0,6,1,5,0,0,0,20,0,0,20,0,0,6,3,3,3,3,3,3
+							dd 3,3,6,0,0,0,1,0,0,5,1,1,1,1,2,1,0,0,0,0,0,0,0,1,1,3,3,3,3,3
 							dd 3,3,2,0,0,0,0,0,0,1,1,0,0,0,6,1,0,0,0,0,0,0,0,0,6,3,3,3,3,3
 							dd 3,3,1,0,0,0,0,0,0,0,1,0,0,0,5,1,0,20,0,0,0,20,0,5,1,3,3,3,3,3
 							dd 3,3,5,1,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,3,3,3,3,3,3
 							dd 3,3,2,1,1,2,2,1,6,0,2,2,6,1,1,1,1,0,5,1,1,2,0,2,3,3,3,3,3,3
 							dd 3,3,3,3,3,3,3,1,5,0,2,1,1,1,1,2,2,0,1,6,3,1,1,2,3,3,3,3,3,3
 							dd 3,3,3,3,3,1,1,1,2,0,6,2,1,0,0,0,0,0,1,3,3,3,3,3,3,3,3,3,3,3
-							dd 3,3,3,3,3,1,1,6,5,0,1,1,1,0,0,2,20,0,1,3,3,3,3,3,3,3,3,3,3,3
-							dd 3,4,4,4,4,4,1,5,6,0,1,20,1,0,0,1,0,0,5,3,3,3,3,3,3,3,3,3,3,3
-							dd 3,4,0,0,0,4,1,2,2,0,1,1,1,0,0,1,0,0,5,1,5,3,1,2,2,2,3,3,3,3
-							dd 3,4,0,0,0,4,5,1,0,0,0,0,0,0,20,1,2,0,0,0,1,1,6,1,2,6,1,3,3,3
-							dd 3,4,0,0,0,4,6,2,0,0,2,0,0,0,0,1,2,0,0,0,0,0,0,0,0,0,1,3,3,3
-							dd 3,4,0,20,0,4,2,1,0,0,1,6,2,2,1,1,1,1,1,1,1,0,20,0,20,0,6,3,3,3
+							dd 3,3,3,3,3,1,1,6,0,0,0,1,1,0,0,2,20,0,1,3,3,3,3,3,3,3,3,3,3,3
+							dd 3,4,4,4,4,4,1,5,0,0,0,20,1,0,0,1,0,0,5,3,3,3,3,3,3,3,3,3,3,3
+							dd 3,4,0,0,0,4,1,0,0,0,0,1,1,0,0,1,0,0,5,1,5,3,1,2,2,2,3,3,3,3
+							dd 3,4,0,0,0,4,5,0,0,0,0,0,0,0,20,1,2,0,0,0,1,1,6,1,2,6,1,3,3,3
+							dd 3,4,0,20,0,4,6,0,0,0,2,0,0,0,0,1,2,0,0,0,0,0,0,0,0,0,1,3,3,3
+							dd 3,4,0,0,0,4,2,0,0,0,1,6,2,2,1,1,1,1,1,1,1,0,20,0,20,0,6,3,3,3
 							dd 3,4,0,0,0,0,0,0,0,20,1,5,1,2,2,2,1,0,0,0,1,0,0,0,0,0,1,2,3,3
-							dd 3,4,4,4,4,4,2,1,0,0,0,1,1,2,2,5,1,0,0,0,1,0,5,1,2,5,5,2,3,3
-							dd 3,2,2,2,2,2,2,5,6,2,2,1,1,1,2,1,1,0,0,0,1,0,1,1,1,2,3,3,3,3
-							dd 3,3,3,3,3,3,3,1,1,0,2,1,1,2,1,5,1,1,1,1,1,0,2,2,1,2,3,3,3,3
+							dd 3,4,4,4,4,4,2,6,0,0,0,1,1,2,2,5,1,0,0,0,1,0,5,1,2,5,5,2,3,3
+							dd 3,2,2,2,2,2,2,5,0,1,2,1,1,1,2,1,1,0,0,0,1,0,1,1,1,2,3,3,3,3
+							dd 3,3,3,3,3,3,3,1,0,0,2,1,1,2,1,5,1,1,1,1,1,0,2,2,1,2,3,3,3,3
 							dd 3,3,3,3,3,3,3,1,0,0,0,1,1,2,2,0,0,0,0,0,0,0,5,1,1,1,2,3,3,3
 							dd 3,3,3,3,3,3,3,1,6,0,0,1,1,3,6,0,0,20,0,0,0,0,7,7,7,7,7,7,3,3
 							dd 3,3,3,3,3,3,3,1,5,6,1,1,3,3,2,5,0,0,0,0,0,0,0,0,0,0,0,7,3,3
@@ -292,11 +296,11 @@ Enemy ends
 	sizeMap					= $ - _C_mapMatrix
 	_C_player				Player <3,14,5,5,1,ATTACK_MODE_NORMAL,STEP_NONE,0>
 
-	_C_enemys				Enemy <3,18,2,2,1,STEP_NONE,ENEMY_MOVETYPE_BS,0,ENEMY_TYPE_SLIME_BLUE>
+	_C_enemys				
 							Enemy <11,16,2,2,1,STEP_NONE,ENEMY_MOVETYPE_BS,0,ENEMY_TYPE_SLIME_BLUE>
 							Enemy <12,15,2,2,1,STEP_NONE,ENEMY_MOVETYPE_BS,2,ENEMY_TYPE_SLIME_BLUE>
 							Enemy <13,16,2,2,1,STEP_NONE,ENEMY_MOVETYPE_BS,0,ENEMY_TYPE_SLIME_BLUE>
-							Enemy <8,19,2,2,1,STEP_NONE,ENEMY_MOVETYPE_BS,0,ENEMY_TYPE_SLIME_BLUE>
+							Enemy <7,19,2,2,1,STEP_NONE,ENEMY_MOVETYPE_BS,0,ENEMY_TYPE_SLIME_BLUE>
 							Enemy <5,7,2,2,1,STEP_NONE,ENEMY_MOVETYPE_BS,0,ENEMY_TYPE_SLIME_BLUE>
 							Enemy <7,6,2,2,1,STEP_NONE,ENEMY_MOVETYPE_BS,0,ENEMY_TYPE_SLIME_BLUE>
 							Enemy <16,6,2,2,1,STEP_NONE,ENEMY_MOVETYPE_BS,0,ENEMY_TYPE_SLIME_BLUE>
@@ -322,9 +326,10 @@ Enemy ends
 							Enemy <14,12,2,2,1,STEP_NONE,ENEMY_MOVETYPE_CIRCLE,0,ENEMY_TYPE_SLIME_ORANGE>
 							Enemy <14,14,2,2,1,STEP_NONE,ENEMY_MOVETYPE_CIRCLE,0,ENEMY_TYPE_SLIME_ORANGE>
 							Enemy <17,14,2,2,1,STEP_NONE,ENEMY_MOVETYPE_CIRCLE,0,ENEMY_TYPE_SLIME_ORANGE>
-							Enemy <10,17,2,2,1,STEP_NONE,ENEMY_MOVETYPE_CIRCLE,0,ENEMY_TYPE_SLIME_ORANGE>
+							Enemy <9,17,2,2,1,STEP_NONE,ENEMY_MOVETYPE_CIRCLE,0,ENEMY_TYPE_SLIME_ORANGE>
 							Enemy <19,16,2,2,1,STEP_NONE,ENEMY_MOVETYPE_CIRCLE,0,ENEMY_TYPE_SLIME_ORANGE>
 							Enemy <24,25,2,2,1,STEP_NONE,ENEMY_MOVETYPE_CIRCLE,0,ENEMY_TYPE_SLIME_ORANGE>
+							Enemy <10,13,2,2,1,STEP_NONE,ENEMY_MOVETYPE_CIRCLE,0,ENEMY_TYPE_SLIME_ORANGE>
 							
 							Enemy <20,5,2,2,1,STEP_NONE,ENEMY_MOVETYPE_FOLLOW,0,ENEMY_TYPE_SKELETON>
 							Enemy <15,8,2,2,1,STEP_NONE,ENEMY_MOVETYPE_FOLLOW,0,ENEMY_TYPE_SKELETON>
@@ -338,4 +343,7 @@ Enemy ends
 							Enemy <23,26,2,2,1,STEP_NONE,ENEMY_MOVETYPE_FOLLOW,0,ENEMY_TYPE_SKELETON>
 							Enemy <6,6,2,2,1,STEP_NONE,ENEMY_MOVETYPE_FOLLOW,0,ENEMY_TYPE_SKELETON>
 							Enemy <8,5,2,2,1,STEP_NONE,ENEMY_MOVETYPE_FOLLOW,0,ENEMY_TYPE_SKELETON>
+							Enemy <8,21,2,2,1,STEP_NONE,ENEMY_MOVETYPE_FOLLOW,0,ENEMY_TYPE_SKELETON>
+							Enemy <3,5,2,2,1,STEP_NONE,ENEMY_MOVETYPE_FOLLOW,0,ENEMY_TYPE_SKELETON>
+							Enemy <3,18,2,2,1,STEP_NONE,ENEMY_MOVETYPE_FOLLOW,0,ENEMY_TYPE_SKELETON>
 	sizeEnemys				= $ - _C_enemys
