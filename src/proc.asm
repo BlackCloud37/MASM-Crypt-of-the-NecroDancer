@@ -28,7 +28,7 @@ rand proc uses ebx lower, upper
 	mov eax, @r
 
 	xor dx, dx
-	div cx       ; here dx contains the remainder of the division - from 0 to 9
+	div cx
 	mov eax, lower
 	add dx, ax
 	movzx eax, dx
@@ -1129,8 +1129,8 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 				; >= next_beat - tolerance or < tolerance
 				mov eax, currentBeatInterval
 				sub eax, TOLERANCE_COUNT
-				;.if ((currentBeatCount >= eax) || (currentBeatCount <= 1))
-				.if TRUE
+				.if ((currentBeatCount >= eax) || (currentBeatCount <= TOLERANCE_COUNT))
+				;.if TRUE
 					.if (isUpdated == FALSE)
 						mov eax, wParam
 						.if eax == VK_LEFT ; left
@@ -1182,7 +1182,7 @@ _ProcWinMain proc uses ebx edi esi hWnd,uMsg,wParam,lParam
 					mov eax, [beatIntervalsStage1 + eax]
 					mov currentBeatInterval, eax
 					add beatIntervalIndex, type DWORD
-				.elseif currentBeatCount == 1
+				;.elseif currentBeatCount == 1
 					.if isUpdated == FALSE
 						inc paintCount
 						invoke updateStatus

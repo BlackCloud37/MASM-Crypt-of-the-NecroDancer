@@ -29,7 +29,7 @@ _WinMain proc
 ;********************************************************************
 		invoke	CreateWindowEx,WS_EX_CLIENTEDGE,\
 			offset szClassName,offset szClassName,\
-			WS_OVERLAPPEDWINDOW or WS_DLGFRAME,\
+			WS_OVERLAPPEDWINDOW xor WS_THICKFRAME or WS_DLGFRAME or WS_SYSMENU,\
 			100, 100, WINDOW_WIDTH, WINDOW_HEIGHT,\
 			NULL,NULL,hInstance,NULL
 		mov	hWinMain,eax
